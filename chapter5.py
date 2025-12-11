@@ -204,11 +204,11 @@ class FunctionAST(ASTNode):
 	_anonymous_function_counter = 0
 
 	@classmethod
-	def create_anonymous(klass, expr):
+	def create_anonymous(cls, expr):
 		"""Create an anonymous function to hold an expression."""
-		klass._anonymous_function_counter += 1
-		return klass(
-			PrototypeAST('_anon{0}'.format(klass._anonymous_function_counter), []),
+		cls._anonymous_function_counter += 1
+		return cls(
+			PrototypeAST('_anon{0}'.format(cls._anonymous_function_counter), []),
 			expr)
 
 	def is_anonymous(self):
@@ -241,6 +241,9 @@ class Parser(object):
 		self.cur_tok = None
 		self._get_next_token()
 
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+
 		if self.cur_tok.kind == TokenKind.EXTERN:
 			return self._parse_external()
 		elif self.cur_tok.kind == TokenKind.DEF:
@@ -252,13 +255,20 @@ class Parser(object):
 			return self._parse_toplevel_expression()
 
 	def _get_next_token(self):
-		self.cur_tok = next(self.token_generator)
+		if self.token_generator is not None:
+			self.cur_tok = next(self.token_generator)
+		else:
+			raise ParseError("Token generator is not initialized")
 
 	def _match(self, expected_kind, expected_value=None):
 		"""Consume the current token; verify that it's of the expected kind.
 
 		If expected_kind == TokenKind.OPERATOR, verify the operator's value.
 		"""
+
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+
 		if (expected_kind == TokenKind.OPERATOR and
 			not self._cur_tok_is_operator(expected_value)):
 			raise ParseError('Expected "{0}"'.format(expected_value))
@@ -270,6 +280,9 @@ class Parser(object):
 
 	def _cur_tok_precedence(self):
 		"""Get the operator precedence of the current token."""
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		try:
 			return Parser._precedence_map[self.cur_tok.value]
 		except KeyError:
@@ -277,6 +290,9 @@ class Parser(object):
 
 	def _cur_tok_is_operator(self, op):
 		"""Query whether the current token is the operator op"""
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		return (self.cur_tok.kind == TokenKind.OPERATOR and
 				self.cur_tok.value == op)
 
@@ -284,6 +300,9 @@ class Parser(object):
 	#   ::= identifier
 	#   ::= identifier '(' expression* ')'
 	def _parse_identifier_expr(self):
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		id_name = self.cur_tok.value
 		self._get_next_token()
 		# If followed by a '(' it's a call; otherwise, a simple variable ref.
@@ -304,6 +323,9 @@ class Parser(object):
 
 	# numberexpr ::= number
 	def _parse_number_expr(self):
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		result = NumberExprAST(self.cur_tok.value)
 		self._get_next_token()  # consume the number
 		return result
@@ -322,6 +344,9 @@ class Parser(object):
 	#   ::= ifexpr
 	#   ::= forexpr
 	def _parse_primary(self):
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		if self.cur_tok.kind == TokenKind.IDENTIFIER:
 			return self._parse_identifier_expr()
 		elif self.cur_tok.kind == TokenKind.NUMBER:
@@ -348,6 +373,10 @@ class Parser(object):
 	# forexpr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expr
 	def _parse_for_expr(self):
 		self._get_next_token()  # consume the 'for'
+		
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		id_name = self.cur_tok.value
 		self._match(TokenKind.IDENTIFIER)
 		self._match(TokenKind.OPERATOR, '=')
@@ -381,6 +410,10 @@ class Parser(object):
 			# so this condition handles cases when the expression ended.
 			if cur_prec < expr_prec:
 				return lhs
+			
+			if self.cur_tok is None:
+				raise ParseError('Unexpected end of input')
+			
 			op = self.cur_tok.value
 			self._get_next_token()  # consume the operator
 			rhs = self._parse_primary()
@@ -407,6 +440,9 @@ class Parser(object):
 
 	# prototype ::= id '(' id* ')'
 	def _parse_prototype(self):
+		if self.cur_tok is None:
+			raise ParseError('Unexpected end of input')
+		
 		name = self.cur_tok.value
 		self._match(TokenKind.IDENTIFIER)
 		self._match(TokenKind.OPERATOR, '(')
@@ -482,6 +518,9 @@ class LLVMCodeGenerator(object):
 		lhs = self._codegen(node.lhs)
 		rhs = self._codegen(node.rhs)
 
+		if self.builder is None:
+			raise CodegenError('Builder is not initialized')
+
 		if node.op == '+':
 			return self.builder.fadd(lhs, rhs, 'addtmp')
 		elif node.op == '-':
@@ -497,6 +536,10 @@ class LLVMCodeGenerator(object):
 	def _codegen_IfExprAST(self, node):
 		# Emit comparison value
 		cond_val = self._codegen(node.cond_expr)
+		
+		if self.builder is None:
+			raise CodegenError('Builder is not initialized')
+		
 		cmp = self.builder.fcmp_ordered(
 			'!=', cond_val, ir.Constant(ir.DoubleType(), 0.0))
 
@@ -552,6 +595,10 @@ class LLVMCodeGenerator(object):
 
 		# Emit the start expr first, without the variable in scope.
 		start_val = self._codegen(node.start_expr)
+		
+		if self.builder is None:
+			raise CodegenError('Builder is not initialized')
+		
 		preheader_bb = self.builder.block
 		loop_bb = self.builder.function.append_basic_block('loop')
 
@@ -614,6 +661,10 @@ class LLVMCodeGenerator(object):
 		if len(callee_func.args) != len(node.args):
 			raise CodegenError('Call argument length mismatch', node.callee)
 		call_args = [self._codegen(arg) for arg in node.args]
+
+		if self.builder is None:
+			raise CodegenError('Builder is not initialized')
+		
 		return self.builder.call(callee_func, call_args, 'calltmp')
 
 	def _codegen_PrototypeAST(self, node):
@@ -626,10 +677,10 @@ class LLVMCodeGenerator(object):
 		if funcname in self.module.globals:
 			# We only allow the case in which a declaration exists and now the
 			# function is defined (or redeclared) with the same number of args.
-			existing_func = self.module[funcname]
+			existing_func = self.module.globals.get(funcname)
 			if not isinstance(existing_func, ir.Function):
 				raise CodegenError('Function/Global name collision', funcname)
-			if not existing_func.is_declaration():
+			if not existing_func.is_declaration:
 				raise CodegenError('Redifinition of {0}'.format(funcname))
 			if len(existing_func.function_type.args) != len(func_ty.args):
 				raise CodegenError(
