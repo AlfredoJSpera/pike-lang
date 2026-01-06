@@ -1,7 +1,7 @@
 from ast_nodes import *
 from lark import Transformer
 
-# Grammar in EBNF format for Lark.
+# Grammar in Lark format.
 # Operator precedence with rule nesting (relation < add < term).
 grammar = r"""
     ?start: toplevel
@@ -64,14 +64,16 @@ grammar = r"""
 
 class KaleidoscopeTransformer(Transformer):
 	"""
-	Converts the Lark tree (ParseTree) directly into the original 
-	AST classes (NumberExprAST, BinaryExprAST, etc.).
+	A transformer that converts the Lark tree (ParseTree) directly into 
+	the original AST classes (NumberExprAST, BinaryExprAST, etc.).
 	"""
 	
 	def number(self, items):
+		"""If the ParseTree node is a number, return a NumberExprAST."""
 		return NumberExprAST(float(items[0]))
 
 	def variable(self, items):
+		"""If the ParseTree node is a variable, return a VariableExprAST."""
 		return VariableExprAST(str(items[0]))
 
 	def call_expr(self, items):

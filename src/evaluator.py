@@ -6,7 +6,23 @@ from grammar import KaleidoscopeTransformer, grammar
 from ast_nodes import *
 import llvmlite.ir as ir
 
+def print_boxed(label, code, text):
+    lines = text.splitlines()
+    title = f"{label}: '{code}'"
+    
+    # Determine the width based on the longest line or the title
+    content_width = max(len(line) for line in lines) if lines else 0
+    width = max(content_width, len(title)) + 4
+    
+    # Draw the box
+    print(f"\n┌─ {title} {'─' * (width - len(title) - 3)}┐")
+    for line in lines:
+        print(f"│ {line.ljust(width - 2)} │")
+    print(f"└{'─' * width}┘")
+
 class KaleidoscopeEvaluator(object):
+	"""Responsible for evaluating expressions and statements in the Kaleidoscope language."""
+
 	def __init__(self):
 		# Initialize llvmlite
 		llvm.initialize()
@@ -24,6 +40,7 @@ class KaleidoscopeEvaluator(object):
 	def evaluate(self, 
 			code_string: str, 
 			optimize_llvm: bool = True, 
+			print_ast_dump: bool = False,
 			print_llvm_dump: bool = False,
 		):
 		"""
@@ -35,8 +52,11 @@ class KaleidoscopeEvaluator(object):
 		:param optimize_llvm: Optimize the generated llvm code.
 		:type optimize_llvm: bool
 
-		:param print_optimized_llvm: Debug flag.
-		:type print_optimized_llvm: bool
+		:param print_ast_dump: AST debug flag.
+		:type print_ast_dump: bool
+
+		:param print_llvm_dump: LLVM debug flag.
+		:type print_llvm_dump: bool
 		"""
 		
 		# Parse the code string with Lark to return an AST
@@ -45,6 +65,10 @@ class KaleidoscopeEvaluator(object):
 		except Exception as e:
 			print(f"Error parsing code: {e}")
 			exit(1)
+		
+		if print_ast_dump:
+			dump = parsed_ast.dump() # type: ignore
+			print_boxed("AST Tree Dump", code_string, dump) 
 
 		# Generate the llvm code as a string from the parsed AST
 		# and store it in llvm_code_generator.module
@@ -55,7 +79,7 @@ class KaleidoscopeEvaluator(object):
 			exit(1)
 
 		if print_llvm_dump:
-			print("======== Unoptimized LLVM IR")
+			print("\n======== Unoptimized LLVM IR")
 			print(str(self.llvm_code_generator.module))
 
 		# If the AST is a function definition (not anonymous), store it and do not execute it
@@ -63,8 +87,7 @@ class KaleidoscopeEvaluator(object):
 		if not (isinstance(parsed_ast, FunctionAST) and parsed_ast.is_anonymous()):
 			return None
 
-		# Convert the string-like IR into a binary-like representation
-		# and store it in a reference
+		# Convert the LLVM IR string into a binary-like module and store it in a reference
 		module_ref = llvm.parse_assembly(str(self.llvm_code_generator.module))
 
 		# Optimize the LLVM IR
@@ -76,7 +99,7 @@ class KaleidoscopeEvaluator(object):
 			pm.run(module_ref)
 
 			if print_llvm_dump:
-				print("======== Optimized LLVM IR")
+				print("\n======== Optimized LLVM IR")
 				print(str(module_ref))
 
 		# Select the right set of machine code instructions
