@@ -8,62 +8,116 @@ import llvmlite.ir as ir
 
 class KaleidoscopeEvaluator(object):
 	def __init__(self):
+		# Initialize llvmlite
 		llvm.initialize()
 		llvm.initialize_native_target()
 		llvm.initialize_native_asmprinter()
 
-		self.codegen = LLVMCodeGenerator()
-		self._add_builtins(self.codegen.module)
+		# Initialize the llvm code generation an evaluation
+		self.llvm_code_generator = LLVMCodeGenerator()
+		self._add_builtins(self.llvm_code_generator.module)
 		self.target = llvm.Target.from_default_triple()
 
-		# Initialize Lark
-		self.parser = Lark(grammar, parser='lalr', transformer=KaleidoscopeTransformer())
+		# Initialize the Lark parser
+		self.parser = Lark(grammar, parser="lalr", transformer=KaleidoscopeTransformer())
 
-	def evaluate(self, codestr, optimize=True, llvmdump=False):
+	def evaluate(self, 
+			code_string: str, 
+			optimize_llvm: bool = True, 
+			print_llvm_dump: bool = False,
+		):
 		"""
 		Parse and evaluate the code.
+		
+		:param code_string: The code to evaluate.
+		:type code_string: str
+		
+		:param optimize_llvm: Optimize the generated llvm code.
+		:type optimize_llvm: bool
+
+		:param print_optimized_llvm: Debug flag.
+		:type print_optimized_llvm: bool
 		"""
+		
+		# Parse the code string with Lark to return an AST
 		try:
-			# Parsing with Lark: Return the AST object directly thanks to the Transformer
-			ast = self.parser.parse(codestr)
+			parsed_ast = self.parser.parse(code_string)
 		except Exception as e:
 			print(f"Error parsing code: {e}")
+			exit(1)
+
+		# Generate the llvm code as a string from the parsed AST
+		# and store it in llvm_code_generator.module
+		try:
+			self.llvm_code_generator.generate_code(parsed_ast)
+		except Exception as e:
+			print(f"Error generating llvm: {e}")
+			exit(1)
+
+		if print_llvm_dump:
+			print("======== Unoptimized LLVM IR")
+			print(str(self.llvm_code_generator.module))
+
+		# If the AST is a function definition (not anonymous), store it and do not execute it
+		# Else, continue with the execution
+		if not (isinstance(parsed_ast, FunctionAST) and parsed_ast.is_anonymous()):
 			return None
 
-		self.codegen.generate_code(ast)
+		# Convert the string-like IR into a binary-like representation
+		# and store it in a reference
+		module_ref = llvm.parse_assembly(str(self.llvm_code_generator.module))
 
-		if llvmdump:
-			print('======== Unoptimized LLVM IR')
-			print(str(self.codegen.module))
-
-		if not (isinstance(ast, FunctionAST) and ast.is_anonymous()):
-			return None
-
-		llvmmod = llvm.parse_assembly(str(self.codegen.module))
-
-		if optimize:
-			pmb = llvm.create_pass_manager_builder()
-			pmb.opt_level = 2
+		# Optimize the LLVM IR
+		if optimize_llvm:
+			pm_builder = llvm.create_pass_manager_builder()
+			pm_builder.opt_level = 2
 			pm = llvm.create_module_pass_manager()
-			pmb.populate(pm)
-			pm.run(llvmmod)
-			if llvmdump:
-				print('======== Optimized LLVM IR')
-				print(str(llvmmod))
+			pm_builder.populate(pm)
+			pm.run(module_ref)
 
+			if print_llvm_dump:
+				print("======== Optimized LLVM IR")
+				print(str(module_ref))
+
+		# Select the right set of machine code instructions
 		target_machine = self.target.create_target_machine()
-		with llvm.create_mcjit_compiler(llvmmod, target_machine) as ee:
-			ee.finalize_object()
-			fptr = CFUNCTYPE(c_double)(ee.get_function_address(ast.proto.name))
-			result = fptr()
-			return result
+
+		# Compile the LLVM IR into machine code with a JIT compiler
+		with llvm.create_mcjit_compiler(module_ref, target_machine) as jit_engine:
+			# Resolve all memory addresses and "bake" the binary
+			jit_engine.finalize_object()
+			
+			# Locate the compiled function's address in memory
+			func_name = parsed_ast.proto.name
+			func_address = jit_engine.get_function_address(func_name)
+
+			# Wrap the memory address as a Python-callable function (returning a double)
+			native_func = CFUNCTYPE(c_double)(func_address)
+			
+			# Execute the function and return the result
+			return native_func()
 
 	def _add_builtins(self, module):
-		putchar_ty = ir.FunctionType(ir.IntType(32), [ir.IntType(32)])
-		putchar = ir.Function(module, putchar_ty, 'putchar')
-		putchard_ty = ir.FunctionType(ir.DoubleType(), [ir.DoubleType()])
-		putchard = ir.Function(module, putchard_ty, 'putchard')
-		irbuilder = ir.IRBuilder(putchard.append_basic_block('entry'))
-		ival = irbuilder.fptoui(putchard.args[0], ir.IntType(32), 'intcast')
-		irbuilder.call(putchar, [ival])
-		irbuilder.ret(ir.Constant(ir.DoubleType(), 0))
+		"""Register external C functions and define helper functions in the LLVM module."""
+		# int putchar(int)
+		int32 = ir.IntType(32)
+		putchar_signature = ir.FunctionType(int32, [int32])
+		putchar = ir.Function(module, putchar_signature, 'putchar')
+
+		# double putchard(double)
+		double = ir.DoubleType()
+		putchard_signature = ir.FunctionType(double, [double])
+		putchard = ir.Function(module, putchard_signature, 'putchard')
+
+		# Implement 'putchard' logic
+		entry_block = putchard.append_basic_block('entry')
+		builder = ir.IRBuilder(entry_block)
+		
+		# Convert input double to int32 so putchar can consume it
+		char_value = builder.fptoui(putchard.args[0], int32, name='intcast')
+		
+		# Call the actual C putchar
+		builder.call(putchar, [char_value])
+		
+		# Kaleidoscope functions must return a value; return 0.0 by default
+		builder.ret(ir.Constant(double, 0.0))
