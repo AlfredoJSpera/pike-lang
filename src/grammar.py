@@ -1,3 +1,4 @@
+from tomlkit import item
 from ast_nodes import *
 from lark import Transformer
 
@@ -64,26 +65,30 @@ grammar = r"""
 
 class KaleidoscopeTransformer(Transformer):
 	"""
-	A transformer that converts the Lark tree (ParseTree) directly into 
+	A transformer that converts the Lark tree (Parse Tree) directly into 
 	the original AST classes (NumberExprAST, BinaryExprAST, etc.).
+
+	The name of the methods of this class are equal to the nodes in the lark grammar specification.
 	"""
 	
 	def number(self, items):
-		"""If the ParseTree node is a number, return a NumberExprAST."""
-		return NumberExprAST(float(items[0]))
+		value = float(items[0])
+		return NumberExprAST(value)
 
 	def variable(self, items):
-		"""If the ParseTree node is a variable, return a VariableExprAST."""
-		return VariableExprAST(str(items[0]))
+		name = str(items[0])
+		return VariableExprAST(name)
 
 	def call_expr(self, items):
-		name = str(items[0])
-		# items[1:] arguments (expressions)
-		args = items[1:]
-		return CallExprAST(name, args)
+		called_function_name = str(items[0])
+		called_function_args = items[1:]
+		return CallExprAST(called_function_name, called_function_args)
 
 	def if_expr(self, items):
-		return IfExprAST(items[0], items[1], items[2])
+		cond_expr=items[0]
+		else_expr=items[1]
+		then_expr=items[2]
+		return IfExprAST(cond_expr, else_expr, then_expr)
 
 	def for_expr(self, items):
 		# items structure: [name, start, end, (step?), body]
@@ -113,24 +118,33 @@ class KaleidoscopeTransformer(Transformer):
 		return lhs
 
 	def relation(self, items):
+		# "<"
+		# TODO: add a >
 		return self._binary_op(items)
 
 	def add_expr(self, items):
+		# "+, -""
 		return self._binary_op(items)
 	
 	def term(self, items):
+		# "*, /"
 		return self._binary_op(items)
 
 	def prototype(self, items):
 		name = str(items[0])
-		argnames = [str(x) for x in items[1:]]
-		return PrototypeAST(name, argnames)
+		arg_names = [str(x) for x in items[1:]]
+		return PrototypeAST(name, arg_names)
 
 	def definition(self, items):
-		return FunctionAST(items[0], items[1])
+		prototype = items[0]
+		body = items[1]
+		return FunctionAST(prototype, body)
 
 	def external(self, items):
-		return items[0] # Returns PrototypeAST
+		# Returns PrototypeAST
+		return items[0]
 
 	def expression_top(self, items):
+		# Code that is not inside a function is put
+		# inside an anonymous one
 		return FunctionAST.create_anonymous(items[0])
