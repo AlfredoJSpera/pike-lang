@@ -1,1 +1,0 @@
-('def foo(a b) for x = 65, x < a, b in putchard(x)')

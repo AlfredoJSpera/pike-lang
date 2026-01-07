@@ -1,8 +1,11 @@
 class ASTNode(object):
+	"""A node that defines a structure."""
 	def dump(self, indent=0):
 		raise NotImplementedError
 
-class ExprAST(ASTNode): pass
+class ExprAST(ASTNode): 
+	"""A node that defines logic that results in a value."""
+	pass
 
 class NumberExprAST(ExprAST):
 	"""

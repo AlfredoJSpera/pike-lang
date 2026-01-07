@@ -1,0 +1,34 @@
+graph TD
+    Start([?start]) --> Top[?toplevel]
+    
+    %% High Level Structures
+    Top --> Def[definition: def]
+    Top --> Ext[external: extern]
+    Top --> ExprTop[expression_top]
+    
+    Def --> Proto[prototype: name & args]
+    Ext --> Proto
+    Def --> Expr[?expression]
+    ExprTop --> Expr
+
+    %% Math Precedence Layers
+    subgraph Precedence_Hierarchy [Math Precedence Layers]
+        Expr --> Rel[?relation: <]
+        Rel --> Add[?add_expr: + -]
+        Add --> Term[?term: * /]
+        Term --> Factor[?factor]
+        Factor --> Primary[?primary]
+    end
+
+    %% Specific Constructs
+    Primary --> Num[number: NUMBER]
+    Primary --> Var[variable: NAME]
+    Primary --> Call[call_expr: func_name]
+    Primary --> If[if_expr: if/then/else]
+    Primary --> For[for_expr: for/in]
+    Primary --> Nest["( expression )"]
+
+    %% Details
+    Call --> Args[Arguments List]
+    If --> Cond[Condition / Then / Else]
+    For --> Loop[Init / End / Step / Body]

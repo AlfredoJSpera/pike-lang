@@ -5,20 +5,7 @@ from ctypes import CFUNCTYPE, c_double
 from grammar import KaleidoscopeTransformer, grammar
 from ast_nodes import *
 import llvmlite.ir as ir
-
-def print_boxed(label, code, text):
-    lines = text.splitlines()
-    title = f"{label}: '{code}'"
-    
-    # Determine the width based on the longest line or the title
-    content_width = max(len(line) for line in lines) if lines else 0
-    width = max(content_width, len(title)) + 4
-    
-    # Draw the box
-    print(f"\n┌─ {title} {'─' * (width - len(title) - 3)}┐")
-    for line in lines:
-        print(f"│ {line.ljust(width - 2)} │")
-    print(f"└{'─' * width}┘")
+from printing import print_boxed
 
 class KaleidoscopeEvaluator(object):
 	"""Responsible for evaluating expressions and statements in the Kaleidoscope language."""
@@ -68,7 +55,7 @@ class KaleidoscopeEvaluator(object):
 		
 		if print_ast_dump:
 			dump = parsed_ast.dump() # type: ignore
-			print_boxed("AST Tree Dump", code_string, dump) 
+			print_boxed(f"AST Tree Dump: '{code_string}'", dump) 
 
 		# Generate the llvm code as a string from the parsed AST
 		# and store it in llvm_code_generator.module
@@ -79,8 +66,8 @@ class KaleidoscopeEvaluator(object):
 			exit(1)
 
 		if print_llvm_dump:
-			print("\n======== Unoptimized LLVM IR")
-			print(str(self.llvm_code_generator.module))
+			unoptimized = str(self.llvm_code_generator.module)
+			print_boxed(f"Unoptimized LLVM IR: '{code_string}'", unoptimized) 
 
 		# If the AST is a function definition (not anonymous), store it and do not execute it
 		# Else, continue with the execution
@@ -99,8 +86,8 @@ class KaleidoscopeEvaluator(object):
 			pm.run(module_ref)
 
 			if print_llvm_dump:
-				print("\n======== Optimized LLVM IR")
-				print(str(module_ref))
+				optimized = str(module_ref)
+				print_boxed(f"Optimized LLVM IR: '{code_string}'", optimized) 
 
 		# Select the right set of machine code instructions
 		target_machine = self.target.create_target_machine()
