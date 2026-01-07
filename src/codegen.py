@@ -1,4 +1,4 @@
-from ast_nodes import BinaryExprAST, CallExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST, VariableExprAST
+from ast_nodes import BinaryExprAST, CallExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST, VariableExprAST
 import llvmlite.ir as ir
 
 class CodegenError(Exception): 
@@ -32,7 +32,7 @@ class LLVMCodeGenerator(object):
 
 		# Create or retrieve the function using its prototype
 		function = self._codegen(node.prototype)
-		entry_basic_block = function.append_basic_block('entry')
+		entry_basic_block = function.append_basic_block("entry")
 		
 		# Initialize the builder with the entry at the top
 		self.builder = ir.IRBuilder(entry_basic_block)
@@ -94,7 +94,14 @@ class LLVMCodeGenerator(object):
 		return ir.Constant(ir.DoubleType(), value)
 
 	def _codegen_VariableExprAST(self, node: VariableExprAST):
-		return self.function_symbol_table[node.name]
+		# Get the variable from the symbol table
+		variable = self.function_symbol_table.get(node.name)
+		
+		# Error checking
+		if variable is None:
+			raise CodegenError("Using unknown variable", node.name)
+		
+		return variable
 
 	def _codegen_BinaryExprAST(self, node: BinaryExprAST):
 		# Recursion on the node's children
@@ -117,78 +124,7 @@ class LLVMCodeGenerator(object):
 			return self.builder.uitofp(cmp_func, ir.DoubleType(), "booltmp")
 		else:
 			raise CodegenError("Unknown binary operator", node.operator)
-
-	def _codegen_IfExprAST(self, node: IfExprAST):
-		# Generate the code for the condition
-		condition_result = self._codegen(node.condition_expr)
-
-		if self.builder is None: 
-			raise CodegenError("Builder is not initialized")
-		
-		# Check if the condition is true
-		# 1 != 0 => true
-		# 0 != 0 => false
-		zero_false = ir.Constant(ir.DoubleType(), 0.0)
-		is_condition_true = self.builder.fcmp_ordered('!=', condition_result, zero_false)
-
-		then_bb = self.builder.function.append_basic_block('then')
-		else_bb = ir.Block(self.builder.function, 'else')
-		merge_bb = ir.Block(self.builder.function, 'ifcont')
-		self.builder.cbranch(is_condition_true, then_bb, else_bb)
-
-		self.builder.position_at_start(then_bb)
-		then_val = self._codegen(node.then_expr)
-		self.builder.branch(merge_bb)
-		then_bb = self.builder.block
-
-		self.builder.function.basic_blocks.append(else_bb)
-		self.builder.position_at_start(else_bb)
-		else_val = self._codegen(node.else_expr)
-		self.builder.branch(merge_bb)
-
-		self.builder.function.basic_blocks.append(merge_bb)
-		self.builder.position_at_start(merge_bb)
-		phi = self.builder.phi(ir.DoubleType(), 'iftmp')
-		phi.add_incoming(then_val, then_bb)
-		phi.add_incoming(else_val, else_bb)
-		return phi
-
-	def _codegen_ForExprAST(self, node):
-		start_val = self._codegen(node.start_expr)
-		if self.builder is None: raise CodegenError('Builder is not initialized')
-		
-		preheader_bb = self.builder.block
-		loop_bb = self.builder.function.append_basic_block('loop')
-
-		self.builder.branch(loop_bb)
-		self.builder.position_at_start(loop_bb)
-
-		phi = self.builder.phi(ir.DoubleType(), node.id_name)
-		phi.add_incoming(start_val, preheader_bb)
-
-		oldval = self.function_symbol_table.get(node.id_name)
-		self.function_symbol_table[node.id_name] = phi
-
-		body_val = self._codegen(node.body)
-
-		if node.step_expr is None: stepval = ir.Constant(ir.DoubleType(), 1.0)
-		else: stepval = self._codegen(node.step_expr)
-		
-		nextvar = self.builder.fadd(phi, stepval, 'nextvar')
-		endcond = self._codegen(node.end_expr)
-		cmp = self.builder.fcmp_ordered('!=', endcond, ir.Constant(ir.DoubleType(), 0.0), 'loopcond')
-
-		loop_end_bb = self.builder.block
-		after_bb = self.builder.function.append_basic_block('afterloop')
-		self.builder.cbranch(cmp, loop_bb, after_bb)
-		self.builder.position_at_start(after_bb)
-		phi.add_incoming(nextvar, loop_end_bb)
-
-		if oldval is None: del self.function_symbol_table[node.id_name]
-		else: self.function_symbol_table[node.id_name] = oldval
-
-		return ir.Constant(ir.DoubleType(), 0.0)
-
+	
 	def _codegen_CallExprAST(self, node: CallExprAST):
 		called_function_name = node.called_function_name
 		
@@ -213,3 +149,119 @@ class LLVMCodeGenerator(object):
 		
 		# Call the function and return the reference to the call
 		return self.builder.call(called_function, args_passed, "calltmp")
+
+	def _codegen_IfExprAST(self, node: IfExprAST):
+		# Generate the code for the condition
+		condition_result = self._codegen(node.condition_expr)
+
+		if self.builder is None: 
+			raise CodegenError("Builder is not initialized")
+		
+		# Check if the condition is true
+		# 1 != 0 => true
+		# 0 != 0 => false
+		zero_false = ir.Constant(ir.DoubleType(), 0.0)
+		is_condition_true = self.builder.fcmp_ordered('!=', condition_result, zero_false)
+
+		# Build the control flow basic blocks
+		then_block = self.builder.function.append_basic_block("then") # Attach the first block too
+		else_block = ir.Block(self.builder.function, "else")
+		merge_block = ir.Block(self.builder.function, "ifcont")
+
+		# Execute the branching
+		self.builder.cbranch(is_condition_true, then_block, else_block)
+
+		# THEN block
+		self.builder.position_at_start(then_block)
+		then_value = self._codegen(node.then_expr)
+		self.builder.branch(merge_block)
+		then_block = self.builder.block
+
+		# ELSE block
+		self.builder.function.basic_blocks.append(else_block)
+		self.builder.position_at_start(else_block)
+		else_value = self._codegen(node.else_expr)
+		self.builder.branch(merge_block)
+
+		# MERGE
+		self.builder.function.basic_blocks.append(merge_block)
+		self.builder.position_at_start(merge_block)
+		
+		# Decide the path taken with phi
+		phi = self.builder.phi(ir.DoubleType(), "iftmp")
+		phi.add_incoming(then_value, then_block)
+		phi.add_incoming(else_value, else_block)
+		
+		return phi
+
+	def _codegen_ForExprAST(self, node: ForExprAST):
+		# Generate the code for the starting condition
+		counter_start_value = self._codegen(node.start_expr)
+		
+		if self.builder is None:
+			raise CodegenError("Builder is not initialized")
+
+		# Keep track of the block we are currently in before entering the loop
+		pre_header_block = self.builder.block
+
+		# Explicitly jump from the current position into the loop
+		loop_block = self.builder.function.append_basic_block("loop_header")
+		self.builder.branch(loop_block)
+		self.builder.position_at_start(loop_block)
+
+		# Create a PHI node to track the named counter, 
+		# by initializing it with the starting value from the pre header block
+		counter_current_phi_value = self.builder.phi(ir.DoubleType(), node.id_name)
+		counter_current_phi_value.add_incoming(counter_start_value, pre_header_block)
+
+		# Save any existing variable with the same name as the counter and hide it (shadowing)
+		shadowed_value = self.function_symbol_table.get(node.id_name)
+		self.function_symbol_table[node.id_name] = counter_current_phi_value
+
+		# Generate code for the loop body
+		self._codegen(node.body)
+
+		# Calculate the step (default to 1.0 if not provided)
+		if node.step_expr:
+			step_value = self._codegen(node.step_expr)
+		else:
+			step_value = ir.Constant(ir.DoubleType(), 1.0)
+		
+		# Increment the current phi value with the step value
+		counter_incremented_value = self.builder.fadd(counter_current_phi_value, step_value, "next_iterator_val")
+
+		# Check if the end condition is true
+		end_condition = self._codegen(node.end_expr)
+		is_loop_active = self.builder.fcmp_ordered(
+			'!=', 
+			end_condition, 
+			ir.Constant(ir.DoubleType(), 0.0), 
+			"loop_active_bool"
+		)
+
+		# Record the block where the loop logic ends
+		loop_end_block = self.builder.block
+
+		# Create the block for the code following the loop
+		after_loop_block = self.builder.function.append_basic_block("after_loop")
+
+		# If active, jump back to the header, exit the loop otherwise
+		self.builder.cbranch(is_loop_active, loop_block, after_loop_block)
+		
+		# If we loop back, the value is now the incremented counter
+		counter_current_phi_value.add_incoming(counter_incremented_value, loop_end_block)
+
+		# Move the builder to the block after the loop so codegen can continue
+		self.builder.position_at_start(after_loop_block)
+
+		# Restore the original variable to the symbol table (un-shadowing)
+		if shadowed_value is None:
+			# No variable was shadowed, delete the entry
+			del self.function_symbol_table[node.id_name]
+		else:
+			self.function_symbol_table[node.id_name] = shadowed_value
+
+		# For loops in this language traditionally return 0.0
+		return ir.Constant(ir.DoubleType(), 0.0)
+
+	

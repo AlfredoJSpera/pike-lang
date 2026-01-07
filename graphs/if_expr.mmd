@@ -1,0 +1,23 @@
+graph TD
+    Entry([Entry]) --> Cond[Generate condition_expr]
+    Cond --> ICmp[Compare != 0.0]
+    ICmp --> CBranch{cbranch}
+
+    CBranch -- True --> ThenBlock[Basic Block: then]
+    CBranch -- False --> ElseBlock[Basic Block: else]
+
+    subgraph ThenPath [Then Branch]
+        ThenBlock --> ThenEval[Evaluate then_expr]
+        ThenEval --> ThenBranch[Branch to ifcont]
+    end
+
+    subgraph ElsePath [Else Branch]
+        ElseBlock --> ElseEval[Evaluate else_expr]
+        ElseEval --> ElseBranch[Branch to ifcont]
+    end
+
+    ThenBranch --> MergeBlock[Basic Block: ifcont]
+    ElseBranch --> MergeBlock
+
+    MergeBlock --> Phi[PHI Node: iftmp]
+    Phi --> Return([Return result])

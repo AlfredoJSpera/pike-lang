@@ -1,41 +1,54 @@
 class ASTNode(object):
-	"""A node that defines a structure."""
+    """A node that defines a structure with colorized, tightly-bound tree branches."""
 
-	def dump(self, prefix="", is_last=True, is_root=True):
-		"""Print the AST structure recursively."""
-		# Identify Attributes and Children
-		attrs = []
-		children = []
+    # Color Constants
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    CYAN = "\033[96m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
-		for key, value in vars(self).items():
-			if isinstance(value, list):
-				# Flatten lists of nodes into the children queue
-				if any(isinstance(item, ASTNode) for item in value):
-					for item in value:
-						children.append(item)
-				else:
-					attrs.append(f"{key}={value}")
-			elif isinstance(value, ASTNode):
-				children.append(value)
-			else:
-				attrs.append(str(value))
+    def dump(self, prefix="", is_last=True, is_root=True, label=""):
+        attrs = []
+        children = []
 
-		# Build the current line
-		# Use corner if it's the last child, otherwise junction
-		connector = "" if is_root else ("└── " if is_last else "├── ")
-		header = f"{prefix}{connector}{self.__class__.__name__}[{', '.join(attrs)}]"
-		
-		lines = [header]
+        # 1. Identify Attributes and Labeled Children
+        for key, value in vars(self).items():
+            if isinstance(value, list):
+                if any(isinstance(item, ASTNode) for item in value):
+                    for i, item in enumerate(value):
+                        children.append((f"{key}[{i}]", item))
+                else:
+                    attrs.append(f"{self.CYAN}{key}={value}{self.RESET}")
+            elif isinstance(value, ASTNode):
+                children.append((key, value))
+            else:
+                attrs.append(f"{self.YELLOW}{value}{self.RESET}")
 
-		# Handle recursion for children
-		# New prefix for children: add a pipe if there are more siblings to follow
-		new_prefix = prefix if is_root else (prefix + ("    " if is_last else "│   "))
-		
-		for i, child in enumerate(children):
-			last_child = (i == len(children) - 1)
-			lines.append(child.dump(new_prefix, last_child, is_root=False))
+        # 2. Build the current line
+        # Use standard tree connectors
+        connector = "" if is_root else ("└── " if is_last else "├── ")
+        
+        # Format segments without extra padding/tabs
+        label_part = f"{self.GREEN}{label}{self.RESET} => " if label else ""
+        class_part = f"{self.BOLD}{self.BLUE}{self.__class__.__name__}{self.RESET}"
+        attr_part = f"[{', '.join(attrs)}]"
 
-		return "\n".join(lines)
+        header = f"{prefix}{connector}{label_part}{class_part}{attr_part}"
+        lines = [header]
+
+        # 3. Handle recursion for children
+        # The pipe connects siblings vertically
+        pipe = "│   "
+        space = "    "
+        new_prefix = prefix if is_root else (prefix + (space if is_last else pipe))
+        
+        for i, (child_label, child_node) in enumerate(children):
+            is_last_child = (i == len(children) - 1)
+            lines.append(child_node.dump(new_prefix, is_last_child, False, child_label))
+
+        return "\n".join(lines)
 
 class ExprAST(ASTNode): 
 	"""A node that defines logic that results in a value."""
@@ -112,16 +125,16 @@ class IfExprAST(ExprAST):
 
 
 class ForExprAST(ExprAST):
-	def __init__(self, id_name, start_expr, end_expr, step_expr, body):
+	def __init__(self, id_name: str, start_expr: ExprAST, end_expr: ExprAST, step_expr: ExprAST | None, body: ExprAST):
 		"""
 		An expression node that represents a for loop.
 		
 		Args:
-			id_name   : The loop's counter variable name.
-			start_expr: The expression that determines the initial value of the loop counter.
-			end_expr  : The expression that, if true, ends the loop.
-			step_expr : The expression that is added to the counter.
-			body      : The expression to execute in the loop.
+			id_name (str): The loop's counter variable name.
+			start_expr (ExprAST): The expression that determines the initial value of the loop counter.
+			end_expr (ExprAST): The expression that, if true, ends the loop.
+			step_expr (ExprAST | None): The expression that is added to the counter.
+			body (ExprAST): The expression to execute in the loop.
 		
 		Example:
 			>>> # for i = 65, i < 79, 1.0 in i+1
