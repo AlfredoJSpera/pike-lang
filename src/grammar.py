@@ -1,4 +1,3 @@
-from tomlkit import item
 from ast_nodes import *
 from lark import Transformer
 
@@ -145,6 +144,5 @@ class KaleidoscopeTransformer(Transformer):
 		return items[0]
 
 	def expression_top(self, items):
-		# Code that is not inside a function is put
-		# inside an anonymous one
+		# Code that is not inside a function is put inside an anonymous one
 		return FunctionAST.create_anonymous(items[0])
