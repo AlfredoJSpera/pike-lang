@@ -57,8 +57,7 @@ class KaleidoscopeEvaluator(object):
 			dump = parsed_ast.dump() # type: ignore
 			print_boxed(f"AST Tree Dump: '{code_string}'", dump) 
 
-		# Generate the llvm code as a string from the parsed AST
-		# and store it in llvm_code_generator.module
+		# Generate the llvm code
 		try:
 			self.llvm_code_generator.generate_code(parsed_ast)
 		except Exception as e:
@@ -98,7 +97,7 @@ class KaleidoscopeEvaluator(object):
 			jit_engine.finalize_object()
 			
 			# Locate the compiled function's address in memory
-			func_name = parsed_ast.proto.name
+			func_name = parsed_ast.prototype.name
 			func_address = jit_engine.get_function_address(func_name)
 
 			# Wrap the memory address as a Python-callable function (returning a double)

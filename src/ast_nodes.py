@@ -43,18 +43,18 @@ class ExprAST(ASTNode):
 
 
 class NumberExprAST(ExprAST):
-	def __init__(self, val: float):
+	def __init__(self, value: float):
 		"""
 		An expression node that represents a number.
 		
 		Args:
-			val (float): The number.
+			value (float): The number.
 		
 		Example:
 			>>> # 1
 			>>> node = NumberExprAST(1.0)
 		"""
-		self.val = val
+		self.value = value
 
 
 class VariableExprAST(ExprAST):
@@ -73,31 +73,31 @@ class VariableExprAST(ExprAST):
 
 
 class BinaryExprAST(ExprAST):
-	def __init__(self, op: str, lhs, rhs):
+	def __init__(self, operator: str, left_operand: ExprAST, right_operand: ExprAST):
 		"""
 		An expression node that represents a binary expression.
 		
 		Args:
-			op : The central operator.
-			lhs: The left operand of the expression.
-			rhs: The right operand of the expression.
+			operator : The central operator.
+			left_operand: The left operand of the expression.
+			right_operand: The right operand of the expression.
 		
 		Example:
 			>>> # x + 5
 			>>> node = BinaryExprAST("+", VariableExprAST("a"), NumberExprAST(5.0))
 		"""
-		self.op = op
-		self.lhs = lhs
-		self.rhs = rhs
+		self.operator = operator
+		self.left_operand = left_operand
+		self.right_operand = right_operand
 
 
 class IfExprAST(ExprAST):
-	def __init__(self, cond_expr, then_expr, else_expr):
+	def __init__(self, cond_expr: ExprAST, then_expr: ExprAST, else_expr: ExprAST):
 		"""
 		An expression node that represents an if/then/else control flow.
 		
 		Args:
-			cond_expr: The "condition" expression. If true, makes the flow continue to the "then" expression ("else" otherwise).
+			condition_expr: The "condition" expression. If true, makes the flow continue to the "then" expression ("else" otherwise).
 			then_expr: The "then" expression.
 			else_expr: The "else" expression.
 		
@@ -106,7 +106,7 @@ class IfExprAST(ExprAST):
 			>>> condition = BinaryExprAST("<", VariableExprAST("x"), NumberExprAST(10.0))
 			>>> node = IfExprAST(condition, NumberExprAST(1.0), NumberExprAST(0.0))
 		"""
-		self.cond_expr = cond_expr
+		self.condition_expr = cond_expr
 		self.then_expr = then_expr
 		self.else_expr = else_expr
 
@@ -140,13 +140,13 @@ class ForExprAST(ExprAST):
 
 
 class CallExprAST(ExprAST):
-	def __init__(self, callee, args):
+	def __init__(self, called_function_name: str, args: list[ExprAST]):
 		"""
 		An expression node that represents a call to a function.
 		
 		Args:
-			callee: The name of the called function.
-			args  : A list of arguments passed in the call.
+			called_function_name (str): The name of the called function.
+			args (list[ExprAst]): A list of arguments (expressions) passed in the call.
 		
 		Example:
 			>>> # foo(a, 10)
@@ -154,37 +154,37 @@ class CallExprAST(ExprAST):
 			>>> args = [VariableExprAST("a"), NumberExprAST(1.0)]
 			>>> node = CallExprAST(callee, args)
 		"""
-		self.callee = callee
+		self.called_function_name = called_function_name
 		self.args = args
 
 
 class PrototypeAST(ASTNode):
-	def __init__(self, name, argnames):
+	def __init__(self, name: str, arg_names: list[str]):
 		"""
 		A node that represents a prototype of a function. 
 		Is a part of the FunctionAST node.
 		
 		Args:
-			name: The name of the function.
-			argnames: A list of names of the arguments required.
+			name (str): The name of the function.
+			arg_names (list[str]): A list of names of the arguments required.
 		
 		Example:
 			>>> # def foo(x y)
 			>>> node = PrototypeAST("foo", ["x", "y"])
 		"""
 		self.name = name
-		self.argnames = argnames
+		self.arg_names = arg_names
 
 
 class FunctionAST(ASTNode):
-	def __init__(self, proto, body):
+	def __init__(self, prototype: PrototypeAST, body: ExprAST):
 		"""
 		A node that represents a callable function.
 		Can also create an anonymous function.
 		
 		Args:
-			proto (PrototypeAST): The prototype of the function.
-			body: An expression for the body of the function.
+			prototype (PrototypeAST): The prototype of the function.
+			body (ExprAST): An expression for the body of the function.
 		
 		Example:
 			>>> # def foo(x y) x + 1
@@ -192,8 +192,7 @@ class FunctionAST(ASTNode):
 			>>> body = BinaryExprAST("+", VariableExprAST("x"), NumberExprAST(1.0))
 			>>> node = FunctionAST(proto, body)
 		"""
-		self.proto = proto
-		"""e"""
+		self.prototype = prototype
 		self.body = body
 	
 	_anonymous_function_counter = 0
@@ -206,4 +205,4 @@ class FunctionAST(ASTNode):
 		return cls(anon_prototype, expr)
 
 	def is_anonymous(self):
-		return self.proto.name.startswith('_anon')
+		return self.prototype.name.startswith('_anon')
