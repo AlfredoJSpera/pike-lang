@@ -1,3 +1,5 @@
+
+
 def print_boxed(label: str, text: str):
 	"""
 	Print something inside a box with a label.

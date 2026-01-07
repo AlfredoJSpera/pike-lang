@@ -1,7 +1,39 @@
 class ASTNode(object):
 	"""A node that defines a structure."""
-	def dump(self, indent=0):
-		raise NotImplementedError
+	def dump(self, prefix="", is_last=True, is_root=True):
+		# 1. Identify Attributes vs. Children
+		attrs = []
+		children = []
+
+		for key, value in vars(self).items():
+			if isinstance(value, list):
+				# Flatten lists of nodes into the children queue
+				if any(isinstance(item, ASTNode) for item in value):
+					for item in value:
+						children.append(item)
+				else:
+					attrs.append(f"{key}={value}")
+			elif isinstance(value, ASTNode):
+				children.append(value)
+			else:
+				attrs.append(str(value))
+
+		# 2. Build the current line
+		# Use corner (└──) if it's the last child, otherwise junction (├──)
+		connector = "" if is_root else ("└── " if is_last else "├── ")
+		header = f"{prefix}{connector}{self.__class__.__name__}[{', '.join(attrs)}]"
+		
+		lines = [header]
+
+		# 3. Handle recursion for children
+		# New prefix for children: add a pipe if there are more siblings to follow
+		new_prefix = prefix if is_root else (prefix + ("    " if is_last else "│   "))
+		
+		for i, child in enumerate(children):
+			last_child = (i == len(children) - 1)
+			lines.append(child.dump(new_prefix, last_child, is_root=False))
+
+		return "\n".join(lines)
 
 class ExprAST(ASTNode): 
 	"""A node that defines logic that results in a value."""
@@ -19,9 +51,6 @@ class NumberExprAST(ExprAST):
 		:param val: The number.
 		"""
 		self.val = val
-	
-	def dump(self, indent=0):
-		return f"{' ' * indent}{self.__class__.__name__}[{self.val}]"
 
 class VariableExprAST(ExprAST):
 	"""
@@ -37,9 +66,6 @@ class VariableExprAST(ExprAST):
 		:type name: str
 		"""
 		self.name = name
-	
-	def dump(self, indent=0):
-		return f"{' ' * indent}{self.__class__.__name__}[{self.name}]"
 
 class BinaryExprAST(ExprAST):
 	"""
@@ -58,12 +84,6 @@ class BinaryExprAST(ExprAST):
 		self.op = op
 		self.lhs = lhs
 		self.rhs = rhs
-	
-	def dump(self, indent=0):
-		s = f"{' ' * indent}{self.__class__.__name__}[{self.op}]\n"
-		s += self.lhs.dump(indent + 2) + '\n'
-		s += self.rhs.dump(indent + 2)
-		return s
 
 class IfExprAST(ExprAST):
 	"""
@@ -83,14 +103,6 @@ class IfExprAST(ExprAST):
 		self.cond_expr = cond_expr
 		self.then_expr = then_expr
 		self.else_expr = else_expr
-	
-	def dump(self, indent=0):
-		prefix = ' ' * indent
-		s = f"{prefix}{self.__class__.__name__}\n"
-		s += f"{prefix} Condition:\n{self.cond_expr.dump(indent + 2)}\n"
-		s += f"{prefix} Then:\n{self.then_expr.dump(indent + 2)}\n"
-		s += f"{prefix} Else:\n{self.else_expr.dump(indent + 2)}"
-		return s
 
 class ForExprAST(ExprAST):
 	"""
@@ -119,15 +131,6 @@ class ForExprAST(ExprAST):
 		self.end_expr = end_expr
 		self.step_expr = step_expr
 		self.body = body
-	
-	def dump(self, indent=0):
-		prefix = ' ' * indent
-		s = f"{prefix}{self.__class__.__name__}[{self.id_name}]\n"
-		s += f"{prefix} Start:\n{self.start_expr.dump(indent + 2)}\n"
-		s += f"{prefix} End:\n{self.end_expr.dump(indent + 2)}\n"
-		s += f"{prefix} Step:\n{self.step_expr.dump(indent + 2)}\n"
-		s += f"{prefix} Body:\n{self.body.dump(indent + 2)}\n"
-		return s
 
 class CallExprAST(ExprAST):
 	"""
@@ -147,12 +150,6 @@ class CallExprAST(ExprAST):
 		"""
 		self.callee = callee
 		self.args = args
-	
-	def dump(self, indent=0):
-		s = f"{' ' * indent}{self.__class__.__name__}[{self.callee}])\n"
-		for arg in self.args:
-			s += arg.dump(indent + 2) + '\n'
-		return s[:-1]
 
 class PrototypeAST(ASTNode):
 	"""
@@ -169,9 +166,6 @@ class PrototypeAST(ASTNode):
 		"""
 		self.name = name
 		self.argnames = argnames
-	
-	def dump(self, indent=0):
-		return f"{' ' * indent}{self.__class__.__name__}[{', '.join(self.argnames)}]"
 
 class FunctionAST(ASTNode):
 	"""
@@ -180,8 +174,8 @@ class FunctionAST(ASTNode):
 	:example: def foo(x y) x + 1
 
 	>>> proto = PrototypeAST("foo", ["x"])
-    >>> body = BinaryExprAST("+", VariableExprAST("x"), NumberExprAST(1.0))
-    >>> node = FunctionAST(proto, body)
+	>>> body = BinaryExprAST("+", VariableExprAST("x"), NumberExprAST(1.0))
+	>>> node = FunctionAST(proto, body)
 	"""
 
 	def __init__(self, proto, body):
@@ -204,13 +198,3 @@ class FunctionAST(ASTNode):
 
 	def is_anonymous(self):
 		return self.proto.name.startswith('_anon')
-	
-	def dump(self, indent=0):
-		s = f"{' ' * indent}{self.__class__.__name__}[{self.proto.dump()}"
-		if self.is_anonymous():
-			s += f", anonymous, anonymous_counter={self._anonymous_function_counter}"
-		else:
-			s += ", stored"
-		s += ']\n'
-		s += self.body.dump(indent + 2) + '\n'
-		return s
