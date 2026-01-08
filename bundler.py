@@ -171,11 +171,11 @@ if __name__ == "__main__":
 		"src/codegen.py", 
 		"src/evaluator.py", 
 		"src/grammar.py",
-		"src/printing.py",
+		"src/utils.py",
 		"src/tests.py"
 	]
 	
-	OUTPUT = "pike_standalone.py"
+	OUTPUT = "chapter5_lark_standalone.py"
 
 	bundler = PythonBundler(ENTRY_FILE, MODULES, OUTPUT)
 	bundler.bundle()

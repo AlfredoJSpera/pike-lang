@@ -1,4 +1,4 @@
-# Bundled from: ast_nodes, codegen, evaluator, grammar, printing, tests, main
+# Bundled from: ast_nodes, codegen, evaluator, grammar, utils, tests, main
 # Auto-generated bundle
 
 # --- External Imports ---
@@ -138,12 +138,12 @@ class IfExprAST(ExprAST):
 
 
 class ForExprAST(ExprAST):
-	def __init__(self, id_name: str, start_expr: ExprAST, end_expr: ExprAST, step_expr: ExprAST | None, body: ExprAST):
+	def __init__(self, counter_name: str, start_expr: ExprAST, end_expr: ExprAST, step_expr: ExprAST | None, body: ExprAST):
 		"""
 		An expression node that represents a for loop.
 		
 		Args:
-			id_name (str): The loop's counter variable name.
+			counter_name (str): The loop's counter variable name.
 			start_expr (ExprAST): The expression that determines the initial value of the loop counter.
 			end_expr (ExprAST): The expression that, if true, ends the loop.
 			step_expr (ExprAST | None): The expression that is added to the counter.
@@ -158,7 +158,7 @@ class ForExprAST(ExprAST):
 			>>> body  = BinaryExprAST("+", VariableExprAST("i"), NumberExprAST(1.0))
 			>>> node  = ForExprAST(id_n, start, end, step, body)
 		"""
-		self.id_name = id_name
+		self.counter_name = counter_name
 		self.start_expr = start_expr
 		self.end_expr = end_expr
 		self.step_expr = step_expr
@@ -233,7 +233,7 @@ class FunctionAST(ASTNode):
 	def is_anonymous(self):
 		return self.prototype.name.startswith('_anon')
 
-# --- Module: printing ---
+# --- Module: utils ---
 import re
 
 def visible_len(text: str) -> int:
@@ -389,6 +389,8 @@ class LLVMCodeGenerator(object):
 			return self.builder.fsub(left, right, "subtmp")
 		elif node.operator == '*': 
 			return self.builder.fmul(left, right, "multmp")
+		elif node.operator == '/': 
+			return self.builder.fdiv(left, right, "divtmp")
 		elif node.operator == '<':
 			cmp_func = self.builder.fcmp_unordered('<', left, right, "cmptmp")
 			# Convert the integer (boolean) to a double
@@ -435,7 +437,7 @@ class LLVMCodeGenerator(object):
 		is_condition_true = self.builder.fcmp_ordered('!=', condition_result, zero_false)
 
 		# Build the control flow basic blocks
-		then_block = self.builder.function.append_basic_block("then") # Attach the first block too
+		then_block = ir.Block(self.builder.function, "then")
 		else_block = ir.Block(self.builder.function, "else")
 		merge_block = ir.Block(self.builder.function, "ifcont")
 
@@ -443,16 +445,18 @@ class LLVMCodeGenerator(object):
 		self.builder.cbranch(is_condition_true, then_block, else_block)
 
 		# THEN block
-		self.builder.position_at_start(then_block)
+		self.builder.function.basic_blocks.append(then_block)
+		self.builder.position_at_start(then_block) # Pointer for insertion
 		then_value = self._codegen(node.then_expr)
 		self.builder.branch(merge_block)
 		then_block = self.builder.block
 
 		# ELSE block
 		self.builder.function.basic_blocks.append(else_block)
-		self.builder.position_at_start(else_block)
+		self.builder.position_at_start(else_block) # Pointer for insertion
 		else_value = self._codegen(node.else_expr)
 		self.builder.branch(merge_block)
+		else_block = self.builder.block
 
 		# MERGE
 		self.builder.function.basic_blocks.append(merge_block)
@@ -480,14 +484,16 @@ class LLVMCodeGenerator(object):
 		self.builder.branch(loop_block)
 		self.builder.position_at_start(loop_block)
 
-		# Create a PHI node to track the named counter, 
-		# by initializing it with the starting value from the pre header block
-		counter_current_phi_value = self.builder.phi(ir.DoubleType(), node.id_name)
+		# Create a PHI node to track the loop counter
+		# At this point it can be: 
+		# - The init value from the parameter (entry, pre_header)
+		# - The incremented counter
+		counter_current_phi_value = self.builder.phi(ir.DoubleType(), node.counter_name)
 		counter_current_phi_value.add_incoming(counter_start_value, pre_header_block)
 
 		# Save any existing variable with the same name as the counter and hide it (shadowing)
-		shadowed_value = self.function_symbol_table.get(node.id_name)
-		self.function_symbol_table[node.id_name] = counter_current_phi_value
+		shadowed_value = self.function_symbol_table.get(node.counter_name)
+		self.function_symbol_table[node.counter_name] = counter_current_phi_value
 
 		# Generate code for the loop body
 		self._codegen(node.body)
@@ -528,9 +534,9 @@ class LLVMCodeGenerator(object):
 		# Restore the original variable to the symbol table (un-shadowing)
 		if shadowed_value is None:
 			# No variable was shadowed, delete the entry
-			del self.function_symbol_table[node.id_name]
+			del self.function_symbol_table[node.counter_name]
 		else:
-			self.function_symbol_table[node.id_name] = shadowed_value
+			self.function_symbol_table[node.counter_name] = shadowed_value
 
 		# For loops in this language traditionally return 0.0
 		return ir.Constant(ir.DoubleType(), 0.0)
@@ -817,8 +823,174 @@ class KaleidoscopeEvaluator(object):
 # --- Module: tests ---
 import unittest
 
-
 class TestEvaluator(unittest.TestCase):
+	def setUp(self):
+		"""
+		Create a fresh evaluator for each test to ensure 
+		a clean LLVM module and symbol table.
+		"""
+		self.evaluator = KaleidoscopeEvaluator()
+
+	def test_arithmetic_basic(self):
+		"""Test basic floating point arithmetic."""
+		self.assertEqual(self.evaluator.evaluate('1 + 2'), 3.0)
+		self.assertEqual(self.evaluator.evaluate('10 - 4'), 6.0)
+		self.assertEqual(self.evaluator.evaluate('2 * 3'), 6.0)
+		self.assertEqual(self.evaluator.evaluate('10 / 2'), 5.0)
+
+	def test_arithmetic_precedence(self):
+		"""
+		Test that standard order of operations (PEMDAS) is respected.
+		Precedence levels checked:
+		1. Parentheses ()
+		2. Multiplication (*) / Division (/) -> Left Associative
+		3. Addition (+) / Subtraction (-) -> Left Associative
+		4. Relation (<)
+		"""
+		# 1. Multiplication has higher precedence than Addition
+		# 2 + (3 * 4) = 14
+		self.assertEqual(self.evaluator.evaluate('2 + 3 * 4'), 14.0)
+		# (3 * 4) + 2 = 14
+		self.assertEqual(self.evaluator.evaluate('3 * 4 + 2'), 14.0)
+
+		# 2. Division has higher precedence than Subtraction
+		# 20 - (10 / 2) = 15
+		self.assertEqual(self.evaluator.evaluate('20 - 10 / 2'), 15.0)
+
+		# 3. Parentheses override standard precedence
+		# (2 + 3) * 4 = 20
+		self.assertEqual(self.evaluator.evaluate('(2 + 3) * 4'), 20.0)
+		# 20 / (2 + 3) = 4
+		self.assertEqual(self.evaluator.evaluate('20 / (2 + 3)'), 4.0)
+
+		# 4. Left Associativity of Multiplication/Division
+		# (12 / 2) * 3 = 18 ... NOT 12 / (2 * 3) = 2
+		self.assertEqual(self.evaluator.evaluate('12 / 2 * 3'), 18.0)
+
+		# 5. Left Associativity of Addition/Subtraction
+		# (10 - 2) + 3 = 11 ... NOT 10 - (2 + 3) = 5
+		self.assertEqual(self.evaluator.evaluate('10 - 2 + 3'), 11.0)
+
+		# 6. Relational operator has lower precedence than arithmetic
+		# (10 + 2) < (20 - 5) => 12 < 15 => 1.0 (True)
+		self.assertEqual(self.evaluator.evaluate('10 + 2 < 20 - 5'), 1.0)
+		
+		# 7. Complex nested parentheses
+		# (10 + (2 * 3)) / 2 => (10 + 6) / 2 => 8
+		self.assertEqual(self.evaluator.evaluate('(10 + (2 * 3)) / 2'), 8.0)
+
+	def test_function_definition_and_call(self):
+		"""Test defining a simple function and calling it."""
+		# Define function
+		self.evaluator.evaluate('def square(x) x * x')
+		
+		# Call it
+		result = self.evaluator.evaluate('square(5)')
+		self.assertEqual(result, 25.0)
+		
+		# Call it with complex expression
+		result_complex = self.evaluator.evaluate('square(2 + 2)')
+		self.assertEqual(result_complex, 16.0)
+
+	def test_multi_argument_functions(self):
+		"""Test functions with multiple arguments."""
+		self.evaluator.evaluate('def average(a b c) (a + b + c) / 3')
+		self.assertEqual(self.evaluator.evaluate('average(10, 20, 30)'), 20.0)
+
+	def test_recursion_factorial(self):
+		"""Test recursive logic using a factorial function."""
+		# Define factorial
+		self.evaluator.evaluate('''
+			def factorial(x) 
+				if x < 1 then 
+					1 
+				else 
+					x * factorial(x - 1)
+		''')
+		
+		self.assertEqual(self.evaluator.evaluate('factorial(5)'), 120.0)
+		self.assertEqual(self.evaluator.evaluate('factorial(0)'), 1.0)
+
+	def test_recursion_fibonacci(self):
+		"""Test deep recursion with Fibonacci sequence."""
+		self.evaluator.evaluate('''
+			def fib(x) 
+				if x < 3 then 
+					1 
+				else 
+					fib(x-1) + fib(x-2)
+		''')
+		
+		# Fib sequence: 1, 1, 2, 3, 5, 8, 13
+		self.assertEqual(self.evaluator.evaluate('fib(6)'), 8.0)
+		self.assertEqual(self.evaluator.evaluate('fib(7)'), 13.0)
+
+	def test_boolean_logic(self):
+		"""
+		Test logic gates implementation.
+		In this language, 0.0 is false, anything else is true.
+		The '<' operator returns 1.0 for true, 0.0 for false.
+		"""
+		# Define logical NOT
+		self.evaluator.evaluate('def not(x) if x then 0 else 1')
+		
+		self.assertEqual(self.evaluator.evaluate('not(0)'), 1.0)
+		self.assertEqual(self.evaluator.evaluate('not(1)'), 0.0)
+		self.assertEqual(self.evaluator.evaluate('not(100)'), 0.0)
+
+		# Define logical OR
+		self.evaluator.evaluate('def or(x y) if x then 1 else (if y then 1 else 0)')
+		
+		self.assertEqual(self.evaluator.evaluate('or(0, 0)'), 0.0)
+		self.assertEqual(self.evaluator.evaluate('or(1, 0)'), 1.0)
+		self.assertEqual(self.evaluator.evaluate('or(0, 5)'), 1.0)
+
+	def test_for_loop_return_value(self):
+		"""
+		Test that the for-loop construct compiles and runs.
+		Note: In this implementation, 'for' loops always return 0.0.
+		Testing side effects (like printing) is hard, so we test strict execution.
+		"""
+		# Loop from 1 to 5. Body is just a calculation that is discarded.
+		loop_code = 'for i = 1, i < 5, 1.0 in i * i'
+		result = self.evaluator.evaluate(loop_code)
+		self.assertEqual(result, 0.0)
+
+	def test_nested_nested_calls(self):
+		"""Test calling functions within functions within conditionals."""
+		self.evaluator.evaluate('def add(a b) a + b')
+		self.evaluator.evaluate('def small(x) if x < 10 then 1 else 0')
+		
+		# if (10+10 < 10) then 100 else 10+10
+		# if (20 < 10) -> False -> 20
+		code = '''
+			def complex(x) 
+				if small(x) 
+				then 100 
+				else add(x, x)
+		'''
+		self.evaluator.evaluate(code)
+		
+		self.assertEqual(self.evaluator.evaluate('complex(5)'), 100.0)
+		self.assertEqual(self.evaluator.evaluate('complex(10)'), 20.0)
+
+	def test_shadowing_args(self):
+		"""Test that function arguments shadow global functions or other names correctly."""
+		# 'a' is a function argument, 'b' is a function argument
+		self.evaluator.evaluate('def test(a b) a + b')
+		
+		# Here we ensure LLVM doesn't get confused if we use variable names 
+		# that might look like hex code or existing globals.
+		self.assertEqual(self.evaluator.evaluate('test(10, 20)'), 30.0)
+
+	def test_extern_putchard(self):
+		"""
+		Test the external function call 'putchard'.
+		We verify it returns 0.0 (as defined in _add_builtins) and runs without crashing.
+		"""
+		# Note: This will actually print to your console during tests.
+		self.assertEqual(self.evaluator.evaluate('putchard(65)'), 0.0)
+	
 	def test_basic_if(self):
 		e = KaleidoscopeEvaluator()
 		e.evaluate('def foo(a b) a * if a < b then a + 1 else b + 1')
@@ -847,14 +1019,11 @@ class TestEvaluator(unittest.TestCase):
 		self.assertEqual(e.evaluate('foo(3, 2, 30)'), 60)
 
 # --- Module: main ---
+# TODO: make the function have 0 args
+# TODO: make assign
 if __name__ == '__main__':
 	# Evaluate some code.
 	kalei = KaleidoscopeEvaluator()
-	kalei.evaluate('def one(a) 1', print_ast_dump=True)
-	kalei.evaluate('def foo(a b) for x = 65, x < a, b in putchard(x)', print_ast_dump=True)
-
-	# We call these for their side effect of printing to stdout, so don't care
-	# about the return value.
-	kalei.evaluate('foo(79, one(5))', print_ast_dump=True)
-	kalei.evaluate('putchard(10)', print_ast_dump=True)
+	kalei.evaluate('def foo(x) for i = x, i < 5, 1.0 in i+1', print_llvm_dump=True, print_ast_dump=True)
+	kalei.evaluate('foo(1)')
 
