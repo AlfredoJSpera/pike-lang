@@ -125,12 +125,12 @@ class IfExprAST(ExprAST):
 
 
 class ForExprAST(ExprAST):
-	def __init__(self, id_name: str, start_expr: ExprAST, end_expr: ExprAST, step_expr: ExprAST | None, body: ExprAST):
+	def __init__(self, counter_name: str, start_expr: ExprAST, end_expr: ExprAST, step_expr: ExprAST | None, body: ExprAST):
 		"""
 		An expression node that represents a for loop.
 		
 		Args:
-			id_name (str): The loop's counter variable name.
+			counter_name (str): The loop's counter variable name.
 			start_expr (ExprAST): The expression that determines the initial value of the loop counter.
 			end_expr (ExprAST): The expression that, if true, ends the loop.
 			step_expr (ExprAST | None): The expression that is added to the counter.
@@ -145,7 +145,7 @@ class ForExprAST(ExprAST):
 			>>> body  = BinaryExprAST("+", VariableExprAST("i"), NumberExprAST(1.0))
 			>>> node  = ForExprAST(id_n, start, end, step, body)
 		"""
-		self.id_name = id_name
+		self.counter_name = counter_name
 		self.start_expr = start_expr
 		self.end_expr = end_expr
 		self.step_expr = step_expr

@@ -166,7 +166,7 @@ class LLVMCodeGenerator(object):
 		is_condition_true = self.builder.fcmp_ordered('!=', condition_result, zero_false)
 
 		# Build the control flow basic blocks
-		then_block = self.builder.function.append_basic_block("then") # Attach the first block too
+		then_block = ir.Block(self.builder.function, "then")
 		else_block = ir.Block(self.builder.function, "else")
 		merge_block = ir.Block(self.builder.function, "ifcont")
 
@@ -174,14 +174,15 @@ class LLVMCodeGenerator(object):
 		self.builder.cbranch(is_condition_true, then_block, else_block)
 
 		# THEN block
-		self.builder.position_at_start(then_block)
+		self.builder.function.basic_blocks.append(then_block)
+		self.builder.position_at_start(then_block) # Pointer for insertion
 		then_value = self._codegen(node.then_expr)
 		self.builder.branch(merge_block)
 		then_block = self.builder.block
 
 		# ELSE block
 		self.builder.function.basic_blocks.append(else_block)
-		self.builder.position_at_start(else_block)
+		self.builder.position_at_start(else_block) # Pointer for insertion
 		else_value = self._codegen(node.else_expr)
 		self.builder.branch(merge_block)
 		else_block = self.builder.block
@@ -212,14 +213,16 @@ class LLVMCodeGenerator(object):
 		self.builder.branch(loop_block)
 		self.builder.position_at_start(loop_block)
 
-		# Create a PHI node to track the named counter, 
-		# by initializing it with the starting value from the pre header block
-		counter_current_phi_value = self.builder.phi(ir.DoubleType(), node.id_name)
+		# Create a PHI node to track the loop counter
+		# At this point it can be: 
+		# - The init value from the parameter (entry, pre_header)
+		# - The incremented counter
+		counter_current_phi_value = self.builder.phi(ir.DoubleType(), node.counter_name)
 		counter_current_phi_value.add_incoming(counter_start_value, pre_header_block)
 
 		# Save any existing variable with the same name as the counter and hide it (shadowing)
-		shadowed_value = self.function_symbol_table.get(node.id_name)
-		self.function_symbol_table[node.id_name] = counter_current_phi_value
+		shadowed_value = self.function_symbol_table.get(node.counter_name)
+		self.function_symbol_table[node.counter_name] = counter_current_phi_value
 
 		# Generate code for the loop body
 		self._codegen(node.body)
@@ -260,9 +263,9 @@ class LLVMCodeGenerator(object):
 		# Restore the original variable to the symbol table (un-shadowing)
 		if shadowed_value is None:
 			# No variable was shadowed, delete the entry
-			del self.function_symbol_table[node.id_name]
+			del self.function_symbol_table[node.counter_name]
 		else:
-			self.function_symbol_table[node.id_name] = shadowed_value
+			self.function_symbol_table[node.counter_name] = shadowed_value
 
 		# For loops in this language traditionally return 0.0
 		return ir.Constant(ir.DoubleType(), 0.0)

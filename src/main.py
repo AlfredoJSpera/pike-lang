@@ -5,5 +5,5 @@ from evaluator import KaleidoscopeEvaluator
 if __name__ == '__main__':
 	# Evaluate some code.
 	kalei = KaleidoscopeEvaluator()
-	kalei.evaluate('def or(x y) if x then 1 else (if y then 1 else 0)', print_llvm_dump=True, print_ast_dump=True)
-	kalei.evaluate('putchard(48 + or(0,0))')
+	kalei.evaluate('def foo(x) for i = x, i < 5, 1.0 in i+1', print_llvm_dump=True, print_ast_dump=False)
+	kalei.evaluate('foo(1)')
