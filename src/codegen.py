@@ -118,6 +118,8 @@ class LLVMCodeGenerator(object):
 			return self.builder.fsub(left, right, "subtmp")
 		elif node.operator == '*': 
 			return self.builder.fmul(left, right, "multmp")
+		elif node.operator == '/': 
+			return self.builder.fdiv(left, right, "divtmp")
 		elif node.operator == '<':
 			cmp_func = self.builder.fcmp_unordered('<', left, right, "cmptmp")
 			# Convert the integer (boolean) to a double
@@ -182,6 +184,7 @@ class LLVMCodeGenerator(object):
 		self.builder.position_at_start(else_block)
 		else_value = self._codegen(node.else_expr)
 		self.builder.branch(merge_block)
+		else_block = self.builder.block
 
 		# MERGE
 		self.builder.function.basic_blocks.append(merge_block)
@@ -263,5 +266,3 @@ class LLVMCodeGenerator(object):
 
 		# For loops in this language traditionally return 0.0
 		return ir.Constant(ir.DoubleType(), 0.0)
-
-	

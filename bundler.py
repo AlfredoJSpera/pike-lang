@@ -171,6 +171,7 @@ if __name__ == "__main__":
 		"src/codegen.py", 
 		"src/evaluator.py", 
 		"src/grammar.py",
+		"src/printing.py",
 		"src/tests.py"
 	]
 	

@@ -1,34 +1,37 @@
 graph TD
-    Start([?start]) --> Top[?toplevel]
-    
-    %% High Level Structures
-    Top --> Def[definition: def]
-    Top --> Ext[external: extern]
-    Top --> ExprTop[expression_top]
-    
-    Def --> Proto[prototype: name & args]
+    %% Program Structure
+    Start((start)) --> TopLevel{toplevel}
+    TopLevel --> Def[definition: 'def' ...]
+    TopLevel --> Ext[external: 'extern' ...]
+    TopLevel --> ExpTop[expression_top]
+
+    %% Definitions
+    Def --> Proto[prototype]
+    Def --> Exp1[expression]
     Ext --> Proto
-    Def --> Expr[?expression]
-    ExprTop --> Expr
 
-    %% Math Precedence Layers
-    subgraph Precedence_Hierarchy [Math Precedence Layers]
-        Expr --> Rel[?relation: <]
-        Rel --> Add[?add_expr: + -]
-        Add --> Term[?term: * /]
-        Term --> Factor[?factor]
-        Factor --> Primary[?primary]
-    end
+    %% The Precedence Ladder
+    ExpTop --> Exp1
+    Exp1 --> Rel[relation: LESS '<']
+    Rel --> Add[add_expr: PLUS '+', MINUS '-']
+    Add --> Term[term: STAR '*', SLASH '/']
+    Term --> Fact[factor]
+    Fact --> Primary{primary}
 
-    %% Specific Constructs
-    Primary --> Num[number: NUMBER]
-    Primary --> Var[variable: NAME]
-    Primary --> Call[call_expr: func_name]
-    Primary --> If[if_expr: if/then/else]
-    Primary --> For[for_expr: for/in]
-    Primary --> Nest["( expression )"]
+    %% Atoms / Base Cases
+    Primary --> Num((number))
+    Primary --> Var((variable))
+    Primary --> Parens["( expression )"]
+    Primary --> Call[call_expr]
+    Primary --> If[if_expr]
+    Primary --> For[for_expr]
 
-    %% Details
-    Call --> Args[Arguments List]
-    If --> Cond[Condition / Then / Else]
-    For --> Loop[Init / End / Step / Body]
+    %% Complex Constructs
+    If --> |condition| ExpIf1[expression]
+    If --> |then| ExpIf2[expression]
+    If --> |else| ExpIf3[expression]
+
+    For --> |init| ExpFor1[expression]
+    For --> |end| ExpFor2[expression]
+    For --> |step| ExpFor3[expression]
+    For --> |body| ExpFor4[expression]
