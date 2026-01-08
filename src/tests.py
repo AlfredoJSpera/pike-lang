@@ -19,19 +19,43 @@ class TestEvaluator(unittest.TestCase):
 	def test_arithmetic_precedence(self):
 		"""
 		Test that standard order of operations (PEMDAS) is respected.
-		Multiplication/Division (40) > Addition/Subtraction (20) > Relation (10).
+		Precedence levels checked:
+		1. Parentheses ()
+		2. Multiplication (*) / Division (/) -> Left Associative
+		3. Addition (+) / Subtraction (-) -> Left Associative
+		4. Relation (<)
 		"""
+		# 1. Multiplication has higher precedence than Addition
 		# 2 + (3 * 4) = 14
 		self.assertEqual(self.evaluator.evaluate('2 + 3 * 4'), 14.0)
-		
+		# (3 * 4) + 2 = 14
+		self.assertEqual(self.evaluator.evaluate('3 * 4 + 2'), 14.0)
+
+		# 2. Division has higher precedence than Subtraction
+		# 20 - (10 / 2) = 15
+		self.assertEqual(self.evaluator.evaluate('20 - 10 / 2'), 15.0)
+
+		# 3. Parentheses override standard precedence
 		# (2 + 3) * 4 = 20
 		self.assertEqual(self.evaluator.evaluate('(2 + 3) * 4'), 20.0)
-		
-		# 10 - 2 + 3 = 11 (Left associative)
+		# 20 / (2 + 3) = 4
+		self.assertEqual(self.evaluator.evaluate('20 / (2 + 3)'), 4.0)
+
+		# 4. Left Associativity of Multiplication/Division
+		# (12 / 2) * 3 = 18 ... NOT 12 / (2 * 3) = 2
+		self.assertEqual(self.evaluator.evaluate('12 / 2 * 3'), 18.0)
+
+		# 5. Left Associativity of Addition/Subtraction
+		# (10 - 2) + 3 = 11 ... NOT 10 - (2 + 3) = 5
 		self.assertEqual(self.evaluator.evaluate('10 - 2 + 3'), 11.0)
+
+		# 6. Relational operator has lower precedence than arithmetic
+		# (10 + 2) < (20 - 5) => 12 < 15 => 1.0 (True)
+		self.assertEqual(self.evaluator.evaluate('10 + 2 < 20 - 5'), 1.0)
 		
-		# 10 + 2 < 20 = 1.0 (True)
-		self.assertEqual(self.evaluator.evaluate('10 + 2 < 20'), 1.0)
+		# 7. Complex nested parentheses
+		# (10 + (2 * 3)) / 2 => (10 + 6) / 2 => 8
+		self.assertEqual(self.evaluator.evaluate('(10 + (2 * 3)) / 2'), 8.0)
 
 	def test_function_definition_and_call(self):
 		"""Test defining a simple function and calling it."""
