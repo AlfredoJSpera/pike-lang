@@ -21,7 +21,7 @@ statement: stmt ";"
 	 | expression_top
 
 assignment: NAME ":=" expression
-return: "ret" expression
+return: "ret" expression?
 print_no_nl: "!" "(" expression ")"
 print_with_nl: "!!" "(" expression ")"
 
