@@ -43,7 +43,7 @@ calc_grammar = r"""
 
 	// Functions
 	func_definition: "defunc" prototype body
-	prototype: NAME "(" (arg_sequence)? ")" "%" type
+	prototype: NAME "(" arg_sequence? ")" ("%" type)?
 	arg_sequence: arg ("," arg)*
 	arg: NAME ":" type
 	body: "{" statement* "}"
@@ -59,7 +59,7 @@ calc_grammar = r"""
 		 | print_with_nl
 		 | expression_top
 
-	assignment: NAME "=" expression
+	assignment: NAME ":=" expression
 	return: "ret" expression
 	print_no_nl: "!" "(" expression ")"
 	print_with_nl: "!!" "(" expression ")"
@@ -87,15 +87,11 @@ calc_grammar = r"""
 	number: NUMBER
 	string: STRING
 	variable: NAME
-	func_call: NAME "(" (expression_sequence)? ")"
+	func_call: NAME "(" expression_sequence? ")"
 	
 	// Control flow
 	if_statement: "if" "(" expression ")" body ("else" body)?
-	for_statement: "for" "(" loop_header? ";" expression? ";" loop_header? ")" body
-    
-    // Helper to allow "i = 0" or just "func_call()" inside the loop header
-    ?loop_header: assignment
-                | expression
+	for_statement: "for" "(" assignment? ";" expression ";" assignment? ")" body
 
 	// Types
 	type: NUM_TYPE
@@ -130,22 +126,27 @@ if __name__ == "__main__":
 	
 	# Parse input
 	text = """
-# Definizione funzione, ritorna un numero
+# Commento
+
+defunc printer(s: str) {
+	!!(s); # Stampa il numero con nl
+}
+
 defunc somma(a: num) % num {
 	if (a > 1) {
-		tmp = 0 + 0;
-		result = tmp;
+		tmp := 0 + 0;
+		result := tmp;
 	} else {
-		result = 1 + 1;
+		result := 1 + 1;
 	}
-	for (i = 2; i < result; i=i+1){
-		result = result + 1;
+	for (i := 2; i < result; i:=i+1){
+		result := result + 1;
 	}
 	ret result;
 }
-r = somma(2, 3); # Chiamata funzione
-!("ciao");       # Stampa la stringa senza n
-!!(r);           # Stampa il numero con n
+r := somma(2, 3); # Chiamata funzione
+!("ciao");       # Stampa la stringa senza nl
+printer();           
 """
 	tree = parser.parse(text)
 	

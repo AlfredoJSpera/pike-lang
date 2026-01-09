@@ -11,3 +11,9 @@ Run a file with:
 ```bash
 uv run file.py
 ```
+
+Run tests with:
+
+```bash
+uv run pytest file.py
+```
