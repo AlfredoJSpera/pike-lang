@@ -1,0 +1,80 @@
+start: instruction*
+
+?instruction: func_definition
+			| statement
+
+// Functions
+func_definition: "defunc" prototype body
+prototype: NAME "(" (arg ("," arg)*)? ")" ("%" type)?
+arg: NAME ":" type
+body: "{" statement* "}"
+
+// Statements
+statement: stmt ";"
+		 | if_statement
+		 | for_statement
+
+?stmt: assignment
+	 | return
+	 | print_no_nl
+	 | print_with_nl
+	 | expression_top
+
+assignment: NAME ":=" expression
+return: "ret" expression
+print_no_nl: "!" "(" expression ")"
+print_with_nl: "!!" "(" expression ")"
+
+// Expressions
+expression_top: expression // Used to make an anonymous expression
+?expression: compare
+
+// Precedence of operators ("<, >" -> "+, -" -> "*, /" -> atom)
+?compare: compare_operand ((LESS | GREATER) compare_operand)*
+	?compare_operand: add
+?add: add_operand ((PLUS | MINUS) add_operand)*
+	?add_operand: product
+?product: product_operand ((STAR | SLASH) product_operand)*
+	?product_operand: atom
+
+// Atomic objects
+?atom: number
+	| string
+	| variable
+	| func_call
+	| "(" expression ")"
+
+number: NUMBER
+string: STRING
+variable: NAME
+func_call: NAME "(" (expression ("," expression)*)? ")"
+
+// Control flow
+if_statement: "if" "(" expression ")" body ("else" body)?
+for_statement: "for" "(" assignment? ";" expression ";" assignment? ")" body
+
+// Types
+type: NUM_TYPE
+	| STR_TYPE
+
+// Terminals
+PLUS: "+"
+MINUS: "-"
+STAR: "*"
+SLASH: "/"
+LESS: "<"
+GREATER: ">"
+
+NUM_TYPE: "num"
+STR_TYPE: "str"
+
+// Import
+%import common.SH_COMMENT 		-> COMMENT
+%import common.CNAME 			-> NAME
+%import common.ESCAPED_STRING 	-> STRING
+%import common.NUMBER
+%import common.WS
+
+// Ignore
+%ignore WS
+%ignore COMMENT
