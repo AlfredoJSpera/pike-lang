@@ -5,7 +5,7 @@ from evaluator import PikeEvaluator
 valid_code = """
 x := 10.5;
 
-defunc myFunc() {
+defunc myFunc(a: num) % num {
     !!("I am inside a function");
     if (x) {
         !!("I am inside an if");

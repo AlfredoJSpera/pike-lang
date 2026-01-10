@@ -14,7 +14,10 @@ if_statement: "if" "(" expression ")" "{" body "}"
 print_nl: "!!(" expression ");"
 
 // ===== Function
-function: "defunc" name "()" "{" body "}"
+function: "defunc" prototype "{" body "}"
+prototype: name "(" arg_sequence ")" ("%" type)?
+arg_sequence: (arg ("," arg)*)?
+arg: name ":" type
 body: statement*
 
 // ===== Expressions
@@ -25,6 +28,9 @@ variable: name
 name: NAME
 number: FLOAT_NUMBER
 string: STRING
+type: TYPE_NAME
+
+TYPE_NAME: "num" | "str"
 
 %import python (NAME, STRING, FLOAT_NUMBER, COMMENT)
 %import common.WS

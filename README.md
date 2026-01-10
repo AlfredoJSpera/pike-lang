@@ -4,12 +4,12 @@ Algorithm to determine AST structure from grammar:
 
 1. For each line of the grammar, see the name of the rule.
 2. Ignore "start", it is handled in ToAst.
-3. If the rule is only a terminal, develop it in the `ToAst` class, do eventual adjustments, and make it return a cast of the AST node that it should reflect.
+3. If the rule is only a terminal, develop it in the `ToAst` class, do eventual adjustments, and make it return something that it should reflect.
 
 ```
 rule_A: TERMINAL
 --> class RuleA
---> def TERMINAL(self, token): return RuleA(elaborated_token)
+--> def TERMINAL(self, token): return elaborated_token
 ```
 
 4. If it is a rule with options, make it into an abstract class.
