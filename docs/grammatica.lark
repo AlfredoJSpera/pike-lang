@@ -1,24 +1,27 @@
-start: instruction*
+?start: code_block
+
+code_block: instruction*
 
 ?instruction: func_definition
-			| statement
+		| statement
 
 // Functions
 func_definition: "defunc" prototype body
-prototype: NAME "(" (arg ("," arg)*)? ")" ("%" type)?
+prototype: NAME "(" arg_sequence ")" ("%" type)?
+arg_sequence: (arg ("," arg)*)?
 arg: NAME ":" type
 body: "{" statement* "}"
 
 // Statements
-statement: stmt ";"
-		 | if_statement
-		 | for_statement
+statement: regular_statement ";"
+		| if_statement
+		| for_statement
 
-?stmt: assignment
-	 | return
-	 | print_no_nl
-	 | print_with_nl
-	 | expression_top
+?regular_statement: assignment
+		| return
+		| print_no_nl
+		| print_with_nl
+		| expression
 
 assignment: NAME ":=" expression
 return: "ret" expression?
@@ -26,8 +29,7 @@ print_no_nl: "!" "(" expression ")"
 print_with_nl: "!!" "(" expression ")"
 
 // Expressions
-expression_top: expression // Used to make an anonymous expression
-?expression: compare
+expression: compare
 
 // Precedence of operators ("<, >" -> "+, -" -> "*, /" -> atom)
 ?compare: compare_operand ((LESS | GREATER) compare_operand)*
