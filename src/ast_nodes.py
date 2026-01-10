@@ -22,10 +22,6 @@ class _Expression(_Ast):
 # --- Terminal wrappers ---
 
 @dataclass
-class Name(_Ast):
-	value: str   # NAME token
-
-@dataclass
 class Number(_Expression):
 	value: float # FLOAT_NUMBER token
 
@@ -37,7 +33,7 @@ class String(_Expression):
 
 @dataclass
 class Variable(_Expression):
-	name: Name
+	name: str
 
 # --- Containers ---
 
@@ -55,16 +51,16 @@ class Body(_Ast, ast_utils.AsList):
 class Type(_Ast):
 	name: str
 
-@dataclass
-class Arg(_Ast):
-	name: Name
-	arg_type: Type
-
 # --- Functions ---
 
 @dataclass
+class Arg(_Ast):
+	name: str
+	type: Type
+
+@dataclass
 class Prototype(_Ast):
-	name: Name
+	name: str
 	args: List[Arg]
 	return_type: Optional[Type] = None
 

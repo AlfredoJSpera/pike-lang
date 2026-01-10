@@ -15,20 +15,19 @@ print_nl: "!!(" expression ");"
 
 // ===== Function
 function: "defunc" prototype "{" body "}"
-prototype: name "(" arg_sequence ")" ("%" type)?
+prototype: NAME "(" arg_sequence ")" ("%" type)?
 arg_sequence: (arg ("," arg)*)?
-arg: name ":" type
+arg: NAME ":" type
 body: statement*
 
 // ===== Expressions
 ?expression: number | string | variable
-variable: name
+variable: NAME
 
 // ===== Terminals
-name: NAME
-number: FLOAT_NUMBER
-string: STRING
-type: TYPE_NAME
+?number: FLOAT_NUMBER
+?string: STRING
+?type: TYPE_NAME
 
 TYPE_NAME: "num" | "str"
 
