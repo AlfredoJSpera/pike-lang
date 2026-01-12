@@ -1,39 +1,67 @@
 PIKE_GRAMMAR = r"""
-?start: program
-program: instruction*
-?instruction: function | statement
+    start: top_level*
 
-// ===== Statement
-?statement: assignment | if_statement | print_nl
+    ?top_level: function_def
+              | stmt                    -> top_level_stmt
 
+    // Function Definition
+    // items: 0=NAME, 1=args(opt), 2=ret(opt), 3=body
+    function_def: "defunc" NAME "(" [args] ")" ["%" NAME] "{" body "}"
+    
+    args: arg ("," arg)*
+    arg: NAME ":" NAME
 
-assignment: variable ":=" expression ";"
+    body: stmt*
 
-if_statement: "if" "(" expression ")" "{" body "}"
+    // Statements
+    ?stmt: assignment ";"
+         | return_stmt ";"
+         | print_stmt ";"
+         | if_stmt
+         | for_stmt
+         | expr ";"             -> expr_stmt
 
-print_nl: "!!(" expression ");"
+    assignment: NAME ":=" expr
+    return_stmt: "ret" expr
+    print_stmt: "!" "(" expr ")"   -> print_no_nl
+              | "!!" "(" expr ")"  -> print_nl
 
-// ===== Function
-function: "defunc" prototype "{" body "}"
-prototype: NAME "(" arg_sequence ")" ("%" type)?
-arg_sequence: (arg ("," arg)*)?
-arg: NAME ":" type
-body: statement*
+    // If: items: 0=expr, 1=body, 2=else_body(opt)
+    if_stmt: "if" "(" expr ")" "{" body "}" ["else" "{" body "}"]
+    
+    // For loop: for (x, 0; x < max_val; 1)
+    for_stmt: "for" "(" NAME "," expr ";" expr ";" expr ")" "{" body "}"
 
-// ===== Expressions
-?expression: number | string | variable
-variable: NAME
+    // Expressions with Precedence
+    // Precedence: (<, >) -> (+, -) -> (*, /)
+    
+    ?expr: comparison
 
-// ===== Terminals
-?number: FLOAT_NUMBER
-?string: STRING
-?type: TYPE_NAME
+    ?comparison: sum
+               | sum "<" sum  -> lt
+               | sum ">" sum  -> gt
 
-TYPE_NAME: "num" | "str"
+    ?sum: product
+        | sum "+" product -> add
+        | sum "-" product -> sub
 
-%import python (NAME, STRING, FLOAT_NUMBER, COMMENT)
-%import common.WS
+    ?product: atom
+            | product "*" atom -> mul
+            | product "/" atom -> div
 
-%ignore WS
-%ignore COMMENT
+    ?atom: NUMBER           -> number
+         | ESCAPED_STRING   -> string
+         | NAME             -> var_load
+         | "(" expr ")"
+
+    // Terminals
+    NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+    NUMBER: /\d+(\.\d+)?/
+    
+    %import common.ESCAPED_STRING
+    %import common.WS
+    %import common.SH_COMMENT
+    
+    %ignore WS
+    %ignore SH_COMMENT
 """

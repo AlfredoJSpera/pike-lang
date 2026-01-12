@@ -3,23 +3,30 @@ import argparse
 from evaluator import PikeEvaluator
 
 valid_code = """
-x := 10.5;
+defunc greeter() {
+    !!("Hello"); # Print with NL
+}
 
-defunc myFunc(a: num) % num {
-    !!("I am inside a function");
-    if (x) {
-        !!("I am inside an if");
+# Assignment
+max_val := 10;
+
+# Function with typed arguments and return type
+defunc add_numbers(a: num, b: num) %num {
+	!!("printing");
+    ret a + b;
+}
+
+max_example := 50 +1;
+
+# For loop
+for (x, 0; x < max_val; 1) { 
+    if (x < 5) {
+        !("Small: "); # Print without NL
+        !!(x);
+    } else {
+        !("Large: ");
+        !!(x);
     }
-}
-
-if (x) {
-    !!("Top level if");
-}
-"""
-
-invalid_code = """
-if (x) {
-    defunc nestedFunc() { } 
 }
 """
 

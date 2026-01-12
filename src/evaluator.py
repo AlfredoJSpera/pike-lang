@@ -37,7 +37,7 @@ class PikeEvaluator():
 				pretty_lark_tree(lark_tree)
 			)
 		
-		parsed_ast = PikeTransformer.transform(lark_tree)
+		parsed_ast = PikeTransformer().transform(lark_tree)
 		
 		if print_ast_dump:
 			print_boxed(

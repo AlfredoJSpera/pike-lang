@@ -55,7 +55,11 @@ def pretty_lark_tree(node, prefix="", is_last=True, is_root=True):
 		children = node.children
 	else:
 		# It's a Token (leaf node)
-		content = f"{node.type}: {repr(node.value)}"
+		if node is not None:
+			content = f"{node.type}: {repr(node.value)}"
+		else:
+			content = node
+		
 		children = []
 
 	# Start the result with the current node
@@ -78,63 +82,63 @@ def pretty_lark_tree(node, prefix="", is_last=True, is_root=True):
 	return "\n".join(lines)
 
 def pretty_ast(node, prefix="", is_last=True, is_root=True):
-    """
-    Returns a formatted string representation of a custom dataclass AST.
-    Recursive function that handles Lists and Primitives gracefully.
-    """
-    elbow = "└── "
-    pipe  = "│   "
-    tee   = "├── "
-    blank = "    "
+	"""
+	Returns a formatted string representation of a custom dataclass AST.
+	Recursive function that handles Lists and Primitives gracefully.
+	"""
+	elbow = "└── "
+	pipe  = "│   "
+	tee   = "├── "
+	blank = "    "
 
-    # 1. Determine the connector
-    if is_root:
-        connector = ""
-    else:
-        connector = elbow if is_last else tee
+	# 1. Determine the connector
+	if is_root:
+		connector = ""
+	else:
+		connector = elbow if is_last else tee
 
-    # 2. Get the Node Name
-    node_name = node.__class__.__name__
-    lines = [f"{prefix}{connector}{node_name}"]
+	# 2. Get the Node Name
+	node_name = node.__class__.__name__
+	lines = [f"{prefix}{connector}{node_name}"]
 
-    # 3. Calculate new prefix for children
-    if is_root:
-        new_prefix = ""
-    else:
-        new_prefix = prefix + (blank if is_last else pipe)
+	# 3. Calculate new prefix for children
+	if is_root:
+		new_prefix = ""
+	else:
+		new_prefix = prefix + (blank if is_last else pipe)
 
-    # 4. Collect Children
-    # We separate actual AST nodes from primitive values (like strings/numbers)
-    children = []
-    
-    if dataclasses.is_dataclass(node):
-        for field in dataclasses.fields(node):
-            value = getattr(node, field.name)
-            
-            # Case A: List of nodes (e.g. Body.statements)
-            if isinstance(value, list):
-                for item in value:
-                    children.append(item)
-            
-            # Case B: Nested AST Node (e.g. Assignment.variable)
-            elif dataclasses.is_dataclass(value):
-                children.append(value)
-            
-            # Case C: Primitive Value (e.g. Name.value, Number.value)
-            else:
-                # We format this as a string to be a "leaf" child
-                children.append(f"{field.name}: {repr(value)}")
+	# 4. Collect Children
+	# We separate actual AST nodes from primitive values (like strings/numbers)
+	children = []
+	
+	if dataclasses.is_dataclass(node):
+		for field in dataclasses.fields(node):
+			value = getattr(node, field.name)
+			
+			# Case A: List of nodes (e.g. Body.statements)
+			if isinstance(value, list):
+				for item in value:
+					children.append(item)
+			
+			# Case B: Nested AST Node (e.g. Assignment.variable)
+			elif dataclasses.is_dataclass(value):
+				children.append(value)
+			
+			# Case C: Primitive Value (e.g. Name.value, Number.value)
+			else:
+				# We format this as a string to be a "leaf" child
+				children.append(f"{field.name}: {repr(value)}")
 
-    # 5. Process Children
-    for i, child in enumerate(children):
-        is_last_child = (i == len(children) - 1)
-        
-        if isinstance(child, str):
-            # It's a primitive leaf (e.g., "value: 'x'")
-            child_connector = elbow if is_last_child else tee
-            lines.append(f"{new_prefix}{child_connector}{child}")
-        else:
-            # It's a complex node, recurse
-            lines.append(pretty_ast(child, new_prefix, is_last_child, is_root=False))
+	# 5. Process Children
+	for i, child in enumerate(children):
+		is_last_child = (i == len(children) - 1)
+		
+		if isinstance(child, str):
+			# It's a primitive leaf (e.g., "value: 'x'")
+			child_connector = elbow if is_last_child else tee
+			lines.append(f"{new_prefix}{child_connector}{child}")
+		else:
+			# It's a complex node, recurse
+			lines.append(pretty_ast(child, new_prefix, is_last_child, is_root=False))
 
-    return "\n".join(lines)
+	return "\n".join(lines)
