@@ -1,0 +1,271 @@
+import unittest
+from lark import Lark, exceptions
+from grammar import PIKE_GRAMMAR
+from ast_nodes import (
+    PikeTransformer, Program, Function, Body, Parameter,
+    Assignment, Return, Print, IfElse, ForLoop,
+    BinaryOperation, NumberValue, StringValue, Variable, FunctionCall
+)
+
+class TestPikeGrammarAndAST(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """
+        Initialize the parser once for all tests to save time.
+        We replicate the parser setup from evaluator.py to avoid 
+        triggering LLVM initialization found in PikeEvaluator.
+        """
+        cls.parser = Lark(
+            PIKE_GRAMMAR,
+            parser="lalr",
+            start="start",
+        )
+        cls.transformer = PikeTransformer()
+
+    def parse_to_ast(self, code):
+        """Helper to parse code string directly to AST."""
+        tree = self.parser.parse(code)
+        return self.transformer.transform(tree)
+
+    def test_arithmetic_precedence(self):
+        """
+        Rigorous Test: Verify standard mathematical precedence.
+        Grammar expects: (<, >) -> (+, -) -> (*, /)
+        Expression: 10 + 5 * 2 < 100
+        AST Structure should group (5*2) then (10 + result) then (result < 100)
+        """
+        code = "10 + 5 * 2 < 100;"
+        ast = self.parse_to_ast(code)
+        
+        # Unpack the wrapper function created for top-level stmt
+        stmt = ast.functions[0].body.statements[0]
+        
+        # Root should be Less Than (<)
+        self.assertIsInstance(stmt, BinaryOperation)
+        self.assertEqual(stmt.operator, '<')
+        
+        # Right side: 100
+        self.assertIsInstance(stmt.right, NumberValue)
+        self.assertEqual(stmt.right.value, 100.0)
+        
+        # Left side: Addition (+)
+        left_add = stmt.left
+        self.assertIsInstance(left_add, BinaryOperation)
+        self.assertEqual(left_add.operator, '+')
+        self.assertEqual(left_add.left.value, 10.0)
+        
+        # Right side of Addition: Multiplication (*) (demonstrating precedence)
+        right_mul = left_add.right
+        self.assertIsInstance(right_mul, BinaryOperation)
+        self.assertEqual(right_mul.operator, '*')
+        self.assertEqual(right_mul.left.value, 5.0)
+        self.assertEqual(right_mul.right.value, 2.0)
+
+    def test_top_level_wrapping(self):
+        """
+        Rigorous Test: Ensure loose top-level statements are wrapped in 
+        anonymous functions with unique names, while explicit functions remain untouched.
+        """
+        code = """
+        x := 1;
+        defunc my_func() { ret 0; }
+        y := 2;
+        """
+        ast = self.parse_to_ast(code)
+        
+        self.assertEqual(len(ast.functions), 3)
+        
+        # First statement wrapped in _anon1
+        f1 = ast.functions[0]
+        self.assertTrue(f1.name.startswith("_anon"))
+        self.assertIsInstance(f1.body.statements[0], Assignment)
+        self.assertEqual(f1.body.statements[0].name, "x")
+
+        # Second item is explicit function
+        f2 = ast.functions[1]
+        self.assertEqual(f2.name, "my_func")
+
+        # Third statement wrapped in _anon2 (counter incremented)
+        f3 = ast.functions[2]
+        self.assertTrue(f3.name.startswith("_anon"))
+        self.assertNotEqual(f1.name, f3.name) # parsers should produce unique anon names
+        self.assertEqual(f3.body.statements[0].name, "y")
+
+    def test_full_function_definition(self):
+        """
+        Rigorous Test: Verify parsing of a function with all optional components:
+        - Arguments with types
+        - Return type
+        - Multiple statements in body
+        """
+        code = """
+        defunc calculate(a: num, b: str) %num {
+            x := a;
+            ret x;
+        }
+        """
+        ast = self.parse_to_ast(code)
+        func = ast.functions[0]
+        
+        self.assertEqual(func.name, "calculate")
+        self.assertEqual(func.ret_type, "num")
+        
+        # Parameters
+        self.assertEqual(len(func.parameters), 2)
+        self.assertEqual(func.parameters[0].name, "a")
+        self.assertEqual(func.parameters[0].type_name, "num")
+        self.assertEqual(func.parameters[1].name, "b")
+        self.assertEqual(func.parameters[1].type_name, "str")
+        
+        # Body
+        self.assertEqual(len(func.body.statements), 2)
+        self.assertIsInstance(func.body.statements[0], Assignment)
+        self.assertIsInstance(func.body.statements[1], Return)
+
+    def test_if_else_nested(self):
+        """
+        Rigorous Test: Verify nested If/Else structures and block scoping.
+        """
+        code = """
+        if (x < 10) {
+            if (x > 5) {
+                print("mid");
+            }
+        } else {
+            ret 0;
+        }
+        """
+        # Note: 'print' isn't a keyword in grammar, but a function call here unless strictly !, !!
+        # The grammar defines ! and !! as stmt, but standard function call is expression.
+        # We need to wrap this in a top level to parse.
+        
+        wrapped_code = f"defunc main() {{ {code} }}"
+        ast = self.parse_to_ast(wrapped_code)
+        
+        outer_if = ast.functions[0].body.statements[0]
+        self.assertIsInstance(outer_if, IfElse)
+        
+        # Check Condition
+        self.assertEqual(outer_if.condition.operator, '<')
+        
+        # Check Then Block (Nested If)
+        then_stmts = outer_if.then_block.statements
+        self.assertEqual(len(then_stmts), 1)
+        nested_if = then_stmts[0]
+        self.assertIsInstance(nested_if, IfElse)
+        self.assertIsNone(nested_if.else_block) # Inner if has no else
+        
+        # Check Else Block (Return)
+        else_stmts = outer_if.else_block.statements
+        self.assertEqual(len(else_stmts), 1)
+        self.assertIsInstance(else_stmts[0], Return)
+
+    def test_print_statements(self):
+        """
+        Rigorous Test: Differentiate between ! (no newline) and !! (newline).
+        """
+        code = """
+        !("NoLine");
+        !!("NewLine");
+        """
+        ast = self.parse_to_ast(code)
+        
+        # These are loose statements, so they get wrapped in separate anon functions
+        # Statement 1
+        stmt1 = ast.functions[0].body.statements[0]
+        self.assertIsInstance(stmt1, Print)
+        self.assertFalse(stmt1.new_line, "! should have new_line=False")
+        self.assertEqual(stmt1.expression.value, "NoLine")
+
+        # Statement 2
+        stmt2 = ast.functions[1].body.statements[0]
+        self.assertIsInstance(stmt2, Print)
+        self.assertTrue(stmt2.new_line, "!! should have new_line=True")
+
+    def test_for_loop_structure(self):
+        """
+        Rigorous Test: Verify the specific 4-part structure of the for loop.
+        for (iterator, start; condition; step)
+        """
+        code = "for (i, 0; i < 10; 1) { x := x + 1; }"
+        ast = self.parse_to_ast(code)
+        
+        loop = ast.functions[0].body.statements[0]
+        self.assertIsInstance(loop, ForLoop)
+        
+        self.assertEqual(loop.iterator, "i")
+        self.assertIsInstance(loop.start_val, NumberValue)
+        self.assertEqual(loop.start_val.value, 0.0)
+        
+        self.assertIsInstance(loop.condition, BinaryOperation)
+        
+        self.assertIsInstance(loop.step, NumberValue)
+        self.assertEqual(loop.step.value, 1.0)
+        
+        self.assertEqual(len(loop.body.statements), 1)
+
+    def test_function_calls_and_args(self):
+        """
+        Rigorous Test: Verify function calls with complex arguments.
+        """
+        code = "my_func(a + b, 10, nesting(x));"
+        ast = self.parse_to_ast(code)
+        
+        # Expression statement wrapped in anon func
+        expr_stmt = ast.functions[0].body.statements[0]
+        self.assertIsInstance(expr_stmt, FunctionCall)
+        self.assertEqual(expr_stmt.called_name, "my_func")
+        
+        args = expr_stmt.args
+        self.assertEqual(len(args), 3)
+        
+        # Arg 0: Binary Op
+        self.assertIsInstance(args[0], BinaryOperation)
+        
+        # Arg 1: Number
+        self.assertIsInstance(args[1], NumberValue)
+        
+        # Arg 2: Nested Function Call
+        self.assertIsInstance(args[2], FunctionCall)
+        self.assertEqual(args[2].called_name, "nesting")
+
+    def test_negative_syntax_missing_semicolon(self):
+        """
+        Rigorous Test: Expect failure on missing semicolon for assignment.
+        """
+        code = "x := 10" # Missing ;
+        with self.assertRaises(exceptions.UnexpectedInput):
+            self.parse_to_ast(code)
+
+    def test_negative_syntax_malformed_function(self):
+        """
+        Rigorous Test: Expect failure on malformed function headers.
+        """
+        # Missing parenthesis
+        code = "defunc my_func { ret 1; }" 
+        with self.assertRaises(exceptions.UnexpectedInput):
+            self.parse_to_ast(code)
+
+    def test_negative_syntax_invalid_assignment(self):
+        """
+        Rigorous Test: Assignments expect ':=', not '='.
+        """
+        code = "x = 10;"
+        # Uses UnexpectedInput to catch both Token errors and Character errors
+        with self.assertRaises(exceptions.UnexpectedInput):
+            self.parse_to_ast(code)
+
+    def test_string_literal_parsing(self):
+        """
+        Rigorous Test: Ensure strings are parsed and quotes stripped correctly.
+        """
+        code = 'x := "hello_world";'
+        ast = self.parse_to_ast(code)
+        
+        assign = ast.functions[0].body.statements[0]
+        self.assertIsInstance(assign.value, StringValue)
+        # The AST transformer strips quotes via [1:-1]
+        self.assertEqual(assign.value.value, "hello_world")
+
+if __name__ == "__main__":
+    unittest.main()

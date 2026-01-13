@@ -180,12 +180,6 @@ class PikeTransformer(Transformer):
 		return IfElse(cond, then_blk, else_blk)
 
 	def for_stmt(self, items):
-		# for (NAME, expr; expr; expr)
-		# 0: iterator name
-		# 1: start
-		# 2: condition
-		# 3: step
-		# 4: body
 		return ForLoop(
 			iterator=str(items[0]),
 			start_val=items[1],

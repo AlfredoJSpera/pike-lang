@@ -1,8 +1,8 @@
 import pprint
-from ast_nodes import PikeTransformer
+from ast_nodes import PikeTransformer, Program
 from grammar import PIKE_GRAMMAR
 import llvmlite.binding as llvm
-from lark import Lark
+from lark import Lark, Tree
 from utils import *
 
 class ParsingException(Exception): pass
@@ -37,7 +37,7 @@ class PikeEvaluator():
 				pretty_lark_tree(lark_tree)
 			)
 		
-		parsed_ast = PikeTransformer().transform(lark_tree)
+		parsed_ast: Program = PikeTransformer().transform(lark_tree)
 		
 		if print_ast_dump:
 			print_boxed(

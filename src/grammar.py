@@ -26,28 +26,38 @@ PIKE_GRAMMAR = r"""
 		| "!!" "(" expression ")" -> print_nl
 	
 	if_stmt: "if" "(" expression ")" "{" body "}" ["else" "{" body "}"]
-	for_stmt: "for" "(" NAME "," NUMBER ";" expression ";" NUMBER ")" "{" body "}"
+	
+	// FIXED: Now references the 'number' rule defined below
+	for_stmt: "for" "(" NAME "," number ";" expression ";" number ")" "{" body "}"
 
-	// Expressions with Precedence: (<, >) -> (+, -) -> (*, /)	
+	// Expressions with Precedence: (<, >) <- (+, -) <- (*, /) <- atom
 	?expression: comparison
 
+	// Precedence 3
 	?comparison: sum
 		| sum "<" sum  -> lt
 		| sum ">" sum  -> gt
 
+	// Precedence 2
 	?sum: product
 		| sum "+" product -> add
 		| sum "-" product -> sub
 
+	// Precedence 1
 	?product: atom
 		| product "*" atom -> mul
 		| product "/" atom -> div
 
-	?atom: NUMBER        -> number
-		| ESCAPED_STRING -> string
-		| NAME           -> var_load
+	// Highest precedence
+	?atom: number
+		| string
+		| var_load
 		| function_call
 		| "(" expression ")"
+
+	number: NUMBER
+	string: ESCAPED_STRING
+	var_load: NAME
 
 	function_call : NAME "(" [args] ")"
 	args: expression ("," expression)*

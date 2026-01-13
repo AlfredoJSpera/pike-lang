@@ -168,14 +168,14 @@ if __name__ == "__main__":
 	# List all other modules your project relies on
 	MODULES = [
 		"src/ast_nodes.py", 
-		"src/codegen.py", 
+		#"src/codegen.py", 
 		"src/evaluator.py", 
 		"src/grammar.py",
 		"src/utils.py",
-		"src/tests.py"
+		#"src/tests.py"
 	]
 	
-	OUTPUT = "chapter5_lark_standalone.py"
+	OUTPUT = "compiler.py"
 
 	bundler = PythonBundler(ENTRY_FILE, MODULES, OUTPUT)
 	bundler.bundle()
