@@ -1,67 +1,65 @@
 PIKE_GRAMMAR = r"""
-    start: top_level*
+	start: top_level*
 
-    ?top_level: function_def
-              | stmt                    -> top_level_stmt
+	?top_level: function_def
+		| statement -> top_level_stmt
+	
+	// Function Definition
+	function_def: "defunc" NAME "(" [parameters] ")" ["%" NAME] "{" body "}"
+	
+	parameters: par ("," par)*
+	par: NAME ":" NAME
 
-    // Function Definition
-    // items: 0=NAME, 1=args(opt), 2=ret(opt), 3=body
-    function_def: "defunc" NAME "(" [args] ")" ["%" NAME] "{" body "}"
-    
-    args: arg ("," arg)*
-    arg: NAME ":" NAME
+	body: statement*
 
-    body: stmt*
+	// Statements
+	?statement: assignment ";"
+		| return_stmt ";"
+		| print_stmt ";"
+		| if_stmt
+		| for_stmt
+		| expression ";" -> expr_stmt
 
-    // Statements
-    ?stmt: assignment ";"
-         | return_stmt ";"
-         | print_stmt ";"
-         | if_stmt
-         | for_stmt
-         | expr ";"             -> expr_stmt
+	assignment: NAME ":=" expression
+	return_stmt: "ret" expression
+	print_stmt: "!" "(" expression ")" -> print_no_nl
+		| "!!" "(" expression ")" -> print_nl
+	
+	if_stmt: "if" "(" expression ")" "{" body "}" ["else" "{" body "}"]
+	for_stmt: "for" "(" NAME "," NUMBER ";" expression ";" NUMBER ")" "{" body "}"
 
-    assignment: NAME ":=" expr
-    return_stmt: "ret" expr
-    print_stmt: "!" "(" expr ")"   -> print_no_nl
-              | "!!" "(" expr ")"  -> print_nl
+	// Expressions with Precedence: (<, >) -> (+, -) -> (*, /)	
+	?expression: comparison
 
-    // If: items: 0=expr, 1=body, 2=else_body(opt)
-    if_stmt: "if" "(" expr ")" "{" body "}" ["else" "{" body "}"]
-    
-    // For loop: for (x, 0; x < max_val; 1)
-    for_stmt: "for" "(" NAME "," expr ";" expr ";" expr ")" "{" body "}"
+	?comparison: sum
+		| sum "<" sum  -> lt
+		| sum ">" sum  -> gt
 
-    // Expressions with Precedence
-    // Precedence: (<, >) -> (+, -) -> (*, /)
-    
-    ?expr: comparison
+	?sum: product
+		| sum "+" product -> add
+		| sum "-" product -> sub
 
-    ?comparison: sum
-               | sum "<" sum  -> lt
-               | sum ">" sum  -> gt
+	?product: atom
+		| product "*" atom -> mul
+		| product "/" atom -> div
 
-    ?sum: product
-        | sum "+" product -> add
-        | sum "-" product -> sub
+	?atom: NUMBER        -> number
+		| ESCAPED_STRING -> string
+		| NAME           -> var_load
+		| function_call
+		| "(" expression ")"
 
-    ?product: atom
-            | product "*" atom -> mul
-            | product "/" atom -> div
+	function_call : NAME "(" [args] ")"
+	args: expression ("," expression)*
 
-    ?atom: NUMBER           -> number
-         | ESCAPED_STRING   -> string
-         | NAME             -> var_load
-         | "(" expr ")"
-
-    // Terminals
-    NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
-    NUMBER: /\d+(\.\d+)?/
-    
-    %import common.ESCAPED_STRING
-    %import common.WS
-    %import common.SH_COMMENT
-    
-    %ignore WS
-    %ignore SH_COMMENT
+	// Terminals
+	NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+	NUMBER: /\d+(\.\d+)?/
+	
+	%import common.ESCAPED_STRING
+	%import common.WS
+	%import common.SH_COMMENT
+	
+	%ignore WS
+	%ignore SH_COMMENT
 """
