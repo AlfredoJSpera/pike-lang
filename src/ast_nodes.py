@@ -5,10 +5,10 @@ from lark import Transformer
 
 # ===== Define base classes
 
-class Node:
+class AstNode:
 	pass
 
-class TopLevel(Node):
+class TopLevel(AstNode):
 	pass
 
 class Statement(TopLevel):
@@ -22,20 +22,21 @@ class Expression(Statement):
 class PikeType(Enum):
 	NUM = "num"
 	STR = "str"
+	VOID = "void"
 
 # ===== Data holders
 
 @dataclass
-class Argument(Node):
+class Argument(AstNode):
 	value: Expression
 
 @dataclass
-class Parameter(Node):
+class Parameter(AstNode):
 	name: str
 	type_name: PikeType
 
 @dataclass
-class Body(Node):
+class Body(AstNode):
 	statements: List[Statement]
 
 # ===== Functions
@@ -51,8 +52,8 @@ class Function(TopLevel):
 		return self.name.startswith("_anon")
 
 @dataclass
-class Program(Node):
-	"""Root node for anonymous functions."""
+class Program(AstNode):
+	"""Root node of the AST containing a list of anonymous functions."""
 	functions: List[Function]
 
 # ===== Expressions
@@ -146,9 +147,9 @@ class PikeTransformer(Transformer):
 			parameters = []
 		
 		if items[2] is not None:
-			ret_type = PikeType(str(items[2]))
+			ret_type = PikeType.NUM
 		else:
-			ret_type = None
+			ret_type = PikeType.VOID
 		
 		return Function(
 			name=str(items[0]), 

@@ -123,6 +123,27 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		self.assertIsInstance(func.body.statements[0], Assignment)
 		self.assertIsInstance(func.body.statements[1], Return)
 
+	def test_function_definition_return_types(self):
+		code = """
+		defunc fun(a: num, b: num) % num {ret a + b;}
+		"""
+		ast = self.parse_to_ast(code)
+		func = ast.functions[0]
+		self.assertEqual(func.ret_type, PikeType.NUM)
+
+		code = """
+		defunc fun2(a: str) {!!(a);}
+		"""
+		ast = self.parse_to_ast(code)
+		func = ast.functions[0]
+		self.assertEqual(func.ret_type, PikeType.VOID)
+
+		code = """
+		defunc fun2(a: str) % str {ret a;}
+		"""
+		with self.assertRaises(exceptions.UnexpectedInput):
+			self.parse_to_ast(code)
+
 	def test_if_else_nested(self):
 		"""
 		Verify nested If/Else structures and block scoping.
