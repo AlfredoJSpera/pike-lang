@@ -26,11 +26,14 @@ class PikeEvaluator():
 	def evaluate(
 		self, 
 		code: str, 
-		#optimize_llvm: bool = True,
+		optimize_llvm: bool = True,
 		print_lark_dump: bool = False,
 		print_ast_dump: bool = False,
 		print_llvm_dump: bool = False,
 	):
+		# ==========================================
+		# PARSE GRAMMAR
+		# ==========================================
 		try:
 			lark_tree = self.parser.parse(code)
 		except Exception as e:
@@ -42,7 +45,10 @@ class PikeEvaluator():
 				f"Lark parse tree ({type(lark_tree)})",
 				pretty_lark_tree(lark_tree)
 			)
-		
+
+		# ==========================================
+		# PARSE AST
+		# ==========================================
 		try:
 			parsed_ast: ProgramAst = PikeTransformer().transform(lark_tree)
 		except Exception as e:
@@ -55,8 +61,11 @@ class PikeEvaluator():
 				pretty_ast(parsed_ast)
 			)
 		
+		# ==========================================
+		# GENERATE LLVM
+		# ==========================================
 		try:
-			generated_code = self.llvm_code_generator.generate_code(parsed_ast)
+			self.llvm_code_generator.generate_code(parsed_ast)
 		except Exception as e:
 			print_error("Error generating LLVM IR:")
 			raise e
@@ -65,11 +74,9 @@ class PikeEvaluator():
 		
 		if print_llvm_dump:
 			print_boxed("Unoptimized LLVM IR:", unoptimized)
-			for c in generated_code:
-				print_boxed(str(type(c)), str(c))
 		
 		# ==========================================
-		# EXECUTION PHASE
+		# EXECUTE LLVM IR 
 		# ==========================================
 		try:
 			# 1. Parse the IR string into a Binding Module
@@ -77,9 +84,22 @@ class PikeEvaluator():
 			mod = llvm.parse_assembly(unoptimized)
 			mod.verify()
 			
+			target_machine = self.target.create_target_machine()
+			
+			if optimize_llvm:
+				pto = llvm.create_pipeline_tuning_options(speed_level=2)
+				pass_builder = llvm.create_pass_builder(target_machine, pto)
+				pass_manager = pass_builder.getModulePassManager()
+				
+				# Run optimization passes on the module in-place
+				pass_manager.run(mod, pass_builder)
+
+				# Optional: print optimized IR if dumping is enabled
+				if print_llvm_dump:
+					print_boxed("Optimized LLVM IR:", str(mod))
+			
 			# 2. Create the JIT Execution Engine
 			# We use the target machine initialized in __init__
-			target_machine = self.target.create_target_machine()
 			engine = llvm.create_mcjit_compiler(mod, target_machine)
 			
 			# 3. Finalize the object code

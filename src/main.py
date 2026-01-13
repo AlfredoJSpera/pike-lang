@@ -12,7 +12,7 @@ def main(args):
 		code, 
 		print_lark_dump=False, 
 		print_ast_dump=False,
-		print_llvm_dump=False,
+		print_llvm_dump=True,
 	)
 
 if __name__ == "__main__":
