@@ -2,11 +2,8 @@ import argparse
 from pike.evaluator import PikeEvaluator
 
 code = """
-!!("--- Counting to 4 ---");
-for (i, 0; i < 5; 1) {
-    !("Number: ");
-    !!(i);
-}
+defunc hello(a: num) {ret a;}
+!!(hello(1));
 """
 
 def main(args):
