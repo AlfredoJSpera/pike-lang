@@ -1,6 +1,6 @@
 [project]
 name = "pike"
-version = "0.1.0"
+version = "1.0.0"
 description = "LLVM Kaleidoscope tutorial using Python and llvmlite"
 readme = "README.md"
 requires-python = ">=3.12"

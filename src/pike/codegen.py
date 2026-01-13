@@ -11,6 +11,8 @@ class LLVMCodeGenerator:
 		self.double = ir.DoubleType()
 		self.string = ir.IntType(8).as_pointer()
 		self.void = ir.VoidType()
+		# Track the return type of the function currently being compiled
+		self.current_function_ret_type = None
 	
 	def get_ir(self):
 		return str(self.module)
@@ -31,7 +33,12 @@ class LLVMCodeGenerator:
 		return getattr(self, method)(node)
 	
 	def _codegen_FunctionAst(self, node: FunctionAst):
+		# Clear the symbol table for the new function scope
 		self.symbol_table = {}
+
+		# NEW: Save previous state and set current return type
+		previous_ret_type = self.current_function_ret_type
+		self.current_function_ret_type = node.ret_type
 		
 		# Create or retrieve the function using its prototype
 		function = self._get_or_create_function(
@@ -63,6 +70,9 @@ class LLVMCodeGenerator:
 				else:
 					self.builder.ret(ir.Constant(self.double, 0.0))
 		
+		# Restore previous return type context
+		self.current_function_ret_type = previous_ret_type
+
 		return function
 	
 	def _get_or_create_function(
@@ -235,10 +245,15 @@ class LLVMCodeGenerator:
 			raise CodegenError("Return builder is None")
 		
 		if node.expression:
+			if (self.current_function_ret_type is None
+				or self.current_function_ret_type == PikeType.VOID):
+				raise CodegenError("Cannot return a value from a void function.")
+			
 			retval = self._codegen(node.expression)
 			self.builder.ret(retval)
 		else:
 			self.builder.ret_void()
+		
 		# Return a dummy value as the builder has stopped
 		return ir.Constant(self.double, 0.0)
 

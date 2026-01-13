@@ -227,7 +227,7 @@ class TestPikeIRAndExecution(unittest.TestCase):
 	
 	def test_early_return_logic(self):
 		"""
-		Rigorous Test: Verify 'ret' behaves as a terminator effectively.
+		Verify 'ret' behaves as a terminator effectively.
 		"""
 		code = """
 		defunc test() %num {
@@ -301,13 +301,28 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		defunc test() %num {
 			x := 10;
 			if (x > 5) {
-				#do_nothing();
+				do_nothing();
 				x := 20;
 			}
 			ret x;
 		}
 		"""
 		self.assertEqual(self.compile_and_run(code), 20.0)
+
+	def test_void_function_returning_value_error(self):
+		"""
+		Verify that a void function returning a value raises a CodegenError.
+		"""
+		code = """
+		defunc hello(a: num) {
+			ret a; # Error: Implicit Void function returning value
+		}
+		"""
+		
+		with self.assertRaises(Exception) as cm:
+			self.compile_and_run(code)
+		
+		self.assertIn("Cannot return a value from a void function", str(cm.exception))
 
 if __name__ == "__main__":
 	unittest.main()

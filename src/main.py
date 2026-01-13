@@ -2,7 +2,7 @@ import argparse
 from pike.evaluator import PikeEvaluator
 
 code = """
-defunc hello(a: num) {ret a;}
+defunc hello(a: num) %num {ret a;}
 !!(hello(1));
 """
 
