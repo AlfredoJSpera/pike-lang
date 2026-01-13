@@ -36,7 +36,7 @@ class LLVMCodeGenerator:
 		# Clear the symbol table for the new function scope
 		self.symbol_table = {}
 
-		# NEW: Save previous state and set current return type
+		# Save previous state and set current return type
 		previous_ret_type = self.current_function_ret_type
 		self.current_function_ret_type = node.ret_type
 		
@@ -50,6 +50,17 @@ class LLVMCodeGenerator:
 		
 		# Initialize the builder with the entry at the top
 		self.builder = ir.IRBuilder(entry_basic_block)
+
+		# This ensures all variables in symbol_table are pointers to storage.
+		# - 'num' (double) becomes 'double*' (load returns double)
+		# - 'str' (i8*)    becomes 'i8**'    (load returns i8*)
+		for arg in function.args:
+			# Allocate stack space
+			ptr = self.builder.alloca(arg.type, name=arg.name)
+			# Store the argument value
+			self.builder.store(arg, ptr)
+			# Update symbol table to point to the stack memory
+			self.symbol_table[arg.name] = ptr
 		
 		# Generate the code of the body
 		last_val = self._codegen(node.body)
