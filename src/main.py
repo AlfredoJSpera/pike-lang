@@ -2,13 +2,17 @@ import argparse
 from evaluator import PikeEvaluator
 
 code = """
-10 + 5 * 2 < 100;
+x := 10 + 5 * 2 < 100;
 """
-
 
 def main(args):
 	pike = PikeEvaluator()
-	pike.evaluate(code, print_lark_dump=True, print_ast_dump=True)
+	pike.evaluate(
+		code, 
+		print_lark_dump=True, 
+		print_ast_dump=True,
+		print_llvm_dump=True,
+	)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(
