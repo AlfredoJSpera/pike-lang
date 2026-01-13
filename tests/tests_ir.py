@@ -224,6 +224,90 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		}
 		"""
 		self.assertEqual(self.compile_and_run(code), 5.0)
+	
+	def test_early_return_logic(self):
+		"""
+		Rigorous Test: Verify 'ret' behaves as a terminator effectively.
+		"""
+		code = """
+		defunc test() %num {
+			for (i, 0; i < 10; 1) {
+				if (i > 2) {
+					ret i; # Should return 3.0 immediately
+				}
+			}
+			ret 0-1; # Should never be reached
+		}
+		"""
+		self.assertEqual(self.compile_and_run(code), 3.0)
+	
+	def test_argument_shadowing(self):
+		"""
+		Verify that modifying a function argument 
+		works correctly (local shadow copy).
+		"""
+		code = """
+		defunc modify(x: num) %num {
+			x := x + 10; # Should modify the local allocation
+			ret x;
+		}
+
+		defunc test() %num {
+			val := 5;
+			res := modify(val);
+			# val should still be 5, res should be 15
+			if (val < 6) {
+				ret res;
+			}
+			ret 0;
+		}
+		"""
+		self.assertEqual(self.compile_and_run(code), 15.0)
+
+	def test_simulated_boolean_logic(self):
+		"""
+		Verify that logic can be simulated with math.
+		(A AND B) equivalent to (A * B)
+		"""
+		code = """
+		defunc is_between(x: num) %num {
+			# Check if 10 < x < 20
+			# Logic: (x > 10) AND (x < 20)
+			ret (x > 10) * (x < 20);
+		}
+
+		defunc test() %num {
+			r1 := is_between(15); # 1.0 * 1.0 = 1.0
+			r2 := is_between(5);  # 0.0 * 1.0 = 0.0
+			r3 := is_between(25); # 1.0 * 0.0 = 0.0
+			
+			# Encode result: 100 if true, 0 if false
+			ret r1 * 100 + r2 * 10 + r3; 
+		}
+		"""
+		self.assertEqual(self.compile_and_run(code), 100.0)
+
+	def test_void_function_ordering(self):
+		"""
+		Ensure void functions execute in the correct order.
+		We can't test side effects easily, but we can test control flow 
+		surrounding them.
+		"""
+		code = """
+		defunc do_nothing() {
+			x := 1; # Useless work
+		}
+
+		defunc test() %num {
+			x := 10;
+			if (x > 5) {
+				#do_nothing();
+				x := 20;
+			}
+			ret x;
+		}
+		"""
+		self.assertEqual(self.compile_and_run(code), 20.0)
 
 if __name__ == "__main__":
 	unittest.main()

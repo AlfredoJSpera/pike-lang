@@ -31,6 +31,8 @@ class LLVMCodeGenerator:
 		return getattr(self, method)(node)
 	
 	def _codegen_FunctionAst(self, node: FunctionAst):
+		self.symbol_table = {}
+		
 		# Create or retrieve the function using its prototype
 		function = self._get_or_create_function(
 			node.name, 
