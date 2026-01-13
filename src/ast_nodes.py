@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import List, Optional
 from lark import Transformer
 
@@ -16,6 +17,12 @@ class Statement(TopLevel):
 class Expression(Statement):
 	pass
 
+# ===== Enums
+
+class PikeType(Enum):
+	NUM = "num"
+	STR = "str"
+
 # ===== Data holders
 
 @dataclass
@@ -25,7 +32,7 @@ class Argument(Node):
 @dataclass
 class Parameter(Node):
 	name: str
-	type_name: str
+	type_name: PikeType
 
 @dataclass
 class Body(Node):
@@ -37,7 +44,7 @@ class Body(Node):
 class Function(TopLevel):
 	name: str
 	parameters: List[Parameter]
-	ret_type: Optional[str]
+	ret_type: Optional[PikeType]
 	body: Body
 
 	def is_anonymous(self):
@@ -77,12 +84,12 @@ class FunctionCall(Expression):
 
 @dataclass
 class Assignment(Statement):
-	name: str
+	variable_name: str
 	value: Expression
 
 @dataclass
 class Return(Statement):
-	value: Optional[Expression]
+	expression: Optional[Expression]
 
 @dataclass
 class Print(Statement):
@@ -104,7 +111,7 @@ class ForLoop(Statement):
 	body: Body
 
 
-# --- Transformer ---
+# ===== Transformer
 
 class PikeTransformer(Transformer):
 	def __init__(self):
@@ -127,60 +134,90 @@ class PikeTransformer(Transformer):
 				)
 				functions.append(func)
 		
-		return Program(functions=functions)
+		return Program(functions)
 
 	def top_level_stmt(self, items):
 		return items[0]
 
 	def function_def(self, items):
-		name = str(items[0])
-		parameters = items[1] if items[1] is not None else []
-		ret_type = str(items[2]) if items[2] is not None else None
-		body = Body(statements=items[3]) 
-
+		if items[1] is not None:
+			parameters = items[1]
+		else:
+			parameters = []
+		
+		if items[2] is not None:
+			ret_type = PikeType(str(items[2]))
+		else:
+			ret_type = None
+		
 		return Function(
-			name=name, 
+			name=str(items[0]), 
 			parameters=parameters, 
-			body=body,
 			ret_type=ret_type, 
+			body=Body(statements=items[3]),
 		)
 
 	def function_call(self, items):
-		name = str(items[0])
-		args = items[1] if items[1] is not None else []
+		if items[1] is not None:
+			args = items[1]
+		else:
+			args = []
 
-		return FunctionCall(name, args)
+		return FunctionCall(
+			called_name=str(items[0]), 
+			args=args
+		)
 
 	def parameters(self, items):
-		return items # returns list of Parameters
+		# Returns list of Parameters
+		return items
 
 	def args(self, items):
-		return items # returns list of Arguments
+		# Returns list of Arguments
+		return items
 
 	def par(self, items):
-		return Parameter(name=str(items[0]), type_name=str(items[1]))
+		return Parameter(
+			name=str(items[0]), 
+			type_name=PikeType(str(items[1])),
+		)
 
 	def body(self, items):
-		return items # returns list of Stmt (can be empty list)
+		# Returns list of Statements
+		return items 
 
-	# --- Statements ---
 	def assignment(self, items):
-		return Assignment(name=str(items[0]), value=items[1])
+		return Assignment(
+			variable_name=str(items[0]), 
+			value=items[1],
+		)
 
 	def return_stmt(self, items):
-		return Return(value=items[0])
+		return Return(expression=items[0])
 
 	def print_nl(self, items):
-		return Print(expression=items[0], new_line=True)
+		return Print(
+			expression=items[0], 
+			new_line=True
+		)
 
 	def print_no_nl(self, items):
-		return Print(expression=items[0], new_line=False)
+		return Print(
+			expression=items[0], 
+			new_line=False
+		)
 
 	def if_stmt(self, items):
-		cond = items[0]
-		then_blk = Body(statements=items[1]) # Changed
-		else_blk = Body(statements=items[2]) if items[2] is not None else None # Changed
-		return IfElse(cond, then_blk, else_blk)
+		if items[2] is not None:
+			else_block = Body(statements=items[2])
+		else:
+			else_block = None
+
+		return IfElse(
+			condition=items[0],
+			then_block=Body(statements=items[1]), 
+			else_block=else_block,
+		)
 
 	def for_stmt(self, items):
 		return ForLoop(
@@ -194,7 +231,6 @@ class PikeTransformer(Transformer):
 	def expr_stmt(self, items):
 		return items[0]
 
-	# --- Expressions & Binary Ops ---
 	def add(self, items): return BinaryOperation('+', items[0], items[1])
 	def sub(self, items): return BinaryOperation('-', items[0], items[1])
 	def mul(self, items): return BinaryOperation('*', items[0], items[1])

@@ -2,7 +2,7 @@ import unittest
 from lark import Lark, exceptions
 from src.grammar import PIKE_GRAMMAR
 from src.ast_nodes import (
-    PikeTransformer, Program, Function, Body, Parameter,
+    PikeTransformer, PikeType, Program, Function, Body, Parameter,
     Assignment, Return, Print, IfElse, ForLoop,
     BinaryOperation, NumberValue, StringValue, Variable, FunctionCall
 )
@@ -79,7 +79,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
         f1 = ast.functions[0]
         self.assertTrue(f1.is_anonymous())
         self.assertIsInstance(f1.body.statements[0], Assignment)
-        self.assertEqual(f1.body.statements[0].name, "x")
+        self.assertEqual(f1.body.statements[0].variable_name, "x")
 
         # Second item is explicit function
         f2 = ast.functions[1]
@@ -90,7 +90,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
         f3 = ast.functions[2]
         self.assertTrue(f3.is_anonymous())
         self.assertNotEqual(f1.name, f3.name) # parsers should produce unique anon names
-        self.assertEqual(f3.body.statements[0].name, "y")
+        self.assertEqual(f3.body.statements[0].variable_name, "y")
 
     def test_full_function_definition(self):
         """
@@ -109,14 +109,14 @@ class TestPikeGrammarAndAST(unittest.TestCase):
         func = ast.functions[0]
         
         self.assertEqual(func.name, "calculate")
-        self.assertEqual(func.ret_type, "num")
+        self.assertEqual(func.ret_type, PikeType.NUM)
         
         # Parameters
         self.assertEqual(len(func.parameters), 2)
         self.assertEqual(func.parameters[0].name, "a")
-        self.assertEqual(func.parameters[0].type_name, "num")
+        self.assertEqual(func.parameters[0].type_name, PikeType.NUM)
         self.assertEqual(func.parameters[1].name, "b")
-        self.assertEqual(func.parameters[1].type_name, "str")
+        self.assertEqual(func.parameters[1].type_name, PikeType.STR)
         
         # Body
         self.assertEqual(len(func.body.statements), 2)
