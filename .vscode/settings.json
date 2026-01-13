@@ -7,7 +7,17 @@
 		"**/Thumbs.db": true,
 		"__pycache__": true,
 		".pytest_cache": true,
-		".vscode": true
+		".vscode": true,
+		"**/__pycache__": true
 	},
-	"explorerExclude.backup": {}
+	"explorerExclude.backup": {},
+	"python.testing.unittestArgs": [
+		"-v",
+		"-s",
+		"./tests",
+		"-p",
+		"test*.py"
+	],
+	"python.testing.pytestEnabled": false,
+	"python.testing.unittestEnabled": true
 }

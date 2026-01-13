@@ -1,7 +1,7 @@
 import unittest
 from lark import Lark, exceptions
-from grammar import PIKE_GRAMMAR
-from ast_nodes import (
+from src.grammar import PIKE_GRAMMAR
+from src.ast_nodes import (
     PikeTransformer, Program, Function, Body, Parameter,
     Assignment, Return, Print, IfElse, ForLoop,
     BinaryOperation, NumberValue, StringValue, Variable, FunctionCall
@@ -29,7 +29,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_arithmetic_precedence(self):
         """
-        Rigorous Test: Verify standard mathematical precedence.
+        Verify standard mathematical precedence.
         Grammar expects: (<, >) -> (+, -) -> (*, /)
         Expression: 10 + 5 * 2 < 100
         AST Structure should group (5*2) then (10 + result) then (result < 100)
@@ -63,7 +63,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_top_level_wrapping(self):
         """
-        Rigorous Test: Ensure loose top-level statements are wrapped in 
+        Ensure loose top-level statements are wrapped in 
         anonymous functions with unique names, while explicit functions remain untouched.
         """
         code = """
@@ -93,7 +93,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_full_function_definition(self):
         """
-        Rigorous Test: Verify parsing of a function with all optional components:
+        Verify parsing of a function with all optional components:
         - Arguments with types
         - Return type
         - Multiple statements in body
@@ -124,7 +124,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_if_else_nested(self):
         """
-        Rigorous Test: Verify nested If/Else structures and block scoping.
+        Verify nested If/Else structures and block scoping.
         """
         code = """
         if (x < 10) {
@@ -162,7 +162,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_print_statements(self):
         """
-        Rigorous Test: Differentiate between ! (no newline) and !! (newline).
+        Differentiate between ! (no newline) and !! (newline).
         """
         code = """
         !("NoLine");
@@ -184,7 +184,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_for_loop_structure(self):
         """
-        Rigorous Test: Verify the specific 4-part structure of the for loop.
+        Verify the specific 4-part structure of the for loop.
         for (iterator, start; condition; step)
         """
         code = "for (i, 0; i < 10; 1) { x := x + 1; }"
@@ -206,7 +206,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_function_calls_and_args(self):
         """
-        Rigorous Test: Verify function calls with complex arguments.
+        Verify function calls with complex arguments.
         """
         code = "my_func(a + b, 10, nesting(x));"
         ast = self.parse_to_ast(code)
@@ -231,7 +231,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_negative_syntax_missing_semicolon(self):
         """
-        Rigorous Test: Expect failure on missing semicolon for assignment.
+        Expect failure on missing semicolon for assignment.
         """
         code = "x := 10" # Missing ;
         with self.assertRaises(exceptions.UnexpectedInput):
@@ -239,7 +239,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_negative_syntax_malformed_function(self):
         """
-        Rigorous Test: Expect failure on malformed function headers.
+        Expect failure on malformed function headers.
         """
         # Missing parenthesis
         code = "defunc my_func { ret 1; }" 
@@ -248,7 +248,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_negative_syntax_invalid_assignment(self):
         """
-        Rigorous Test: Assignments expect ':=', not '='.
+        Assignments expect ':=', not '='.
         """
         code = "x = 10;"
         # Uses UnexpectedInput to catch both Token errors and Character errors
@@ -257,7 +257,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 
     def test_string_literal_parsing(self):
         """
-        Rigorous Test: Ensure strings are parsed and quotes stripped correctly.
+        Ensure strings are parsed and quotes stripped correctly.
         """
         code = 'x := "hello_world";'
         ast = self.parse_to_ast(code)
