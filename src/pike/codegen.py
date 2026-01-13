@@ -14,7 +14,7 @@ class LLVMCodeGenerator:
 	
 	def get_ir(self):
 		return str(self.module)
-
+	
 	def generate_code(self, node: ProgramAst):
 		"""
 		Generate the LLVM code as a string from the parsed AST, 
@@ -44,6 +44,10 @@ class LLVMCodeGenerator:
 		
 		# Generate the code of the body
 		last_val = self._codegen(node.body)
+
+		if self.builder.block is None:
+			raise CodegenError("Function builder.block is None")
+
 		
 		# Only add a return if the block hasn't been terminated yet.
 		if not self.builder.block.is_terminated:
@@ -132,7 +136,7 @@ class LLVMCodeGenerator:
 		global_var = ir.GlobalVariable(self.module, c_str_type, name=f".str_{id(node)}")
 		global_var.linkage = 'internal'
 		global_var.global_constant = True
-		global_var.initializer = ir.Constant(c_str_type, bytearray(string_val.encode("utf8")))
+		global_var.initializer = ir.Constant(c_str_type, bytearray(string_val.encode("utf8"))) # type: ignore
 		
 		# 4. Bitcast the array pointer to i8* (char*) for generic use
 		return global_var.bitcast(self.string)
@@ -144,6 +148,9 @@ class LLVMCodeGenerator:
 		
 		val = self.symbol_table[node.name]
 		
+		if self.builder is None:
+			raise CodegenError("Variable builder is None")
+
 		# If it's a pointer (alloca), we load the value
 		if isinstance(val.type, ir.PointerType):
 			return self.builder.load(val, name=node.name)
@@ -154,6 +161,9 @@ class LLVMCodeGenerator:
 	def _codegen_AssignmentAst(self, node: AssignmentAst):
 		value = self._codegen(node.value)
 		name = node.variable_name
+
+		if self.builder is None:
+			raise CodegenError("Assignment builder is None")
 
 		if name not in self.symbol_table:
 			# New variable: Allocate memory on stack
@@ -177,6 +187,9 @@ class LLVMCodeGenerator:
 	def _codegen_BinaryOperationAst(self, node: BinaryOperationAst):
 		lhs = self._codegen(node.left)
 		rhs = self._codegen(node.right)
+
+		if self.builder is None:
+			raise CodegenError("Binary Operation builder is None")
 
 		if node.operator == '+':
 			return self.builder.fadd(lhs, rhs, name="addtmp")
@@ -210,9 +223,15 @@ class LLVMCodeGenerator:
 		if len(callee_func.args) != len(call_args):
 			raise CodegenError(f"Incorrect number of arguments for {node.called_name}")
 
+		if self.builder is None:
+			raise CodegenError("Function Call builder is None")
+		
 		return self.builder.call(callee_func, call_args, name="calltmp")
 
 	def _codegen_ReturnAst(self, node: ReturnAst):
+		if self.builder is None:
+			raise CodegenError("Return builder is None")
+		
 		if node.expression:
 			retval = self._codegen(node.expression)
 			self.builder.ret(retval)
@@ -251,7 +270,10 @@ class LLVMCodeGenerator:
 		global_fmt = ir.GlobalVariable(self.module, c_fmt.type, name=f"fmt_{id(node)}")
 		global_fmt.linkage = 'internal'
 		global_fmt.global_constant = True
-		global_fmt.initializer = c_fmt
+		global_fmt.initializer = c_fmt # type: ignore
+		
+		if self.builder is None:
+			raise CodegenError("Print builder is None")
 		
 		fmt_arg = self.builder.bitcast(global_fmt, self.string)
 		
@@ -259,6 +281,9 @@ class LLVMCodeGenerator:
 
 	def _codegen_IfElseAst(self, node: IfElseAst):
 		cond_val = self._codegen(node.condition)
+
+		if self.builder is None:
+			raise CodegenError("If/Else builder is None")
 		
 		# Convert double condition to i1 (boolean)
 		# 0.0 is false, anything else is true
@@ -275,6 +300,10 @@ class LLVMCodeGenerator:
 		# -- Then Block --
 		self.builder.position_at_end(then_bb)
 		self._codegen(node.then_block)
+
+		if self.builder.block is None:
+			raise CodegenError("If/Else builder.block is None")
+		
 		# Check if the block was already terminated (e.g. by return)
 		if not self.builder.block.is_terminated:
 			self.builder.branch(merge_bb)
@@ -295,6 +324,9 @@ class LLVMCodeGenerator:
 		# 1. Initialization (executed once)
 		# We assume the iterator is a variable assignment logic
 		start_val = self._codegen(node.start_val)
+
+		if self.builder is None:
+			raise CodegenError("For builder is None")
 		
 		# Allocate iterator
 		iter_ptr = self.builder.alloca(self.double, name=node.iterator)
@@ -326,6 +358,9 @@ class LLVMCodeGenerator:
 		next_val = self.builder.fadd(curr_val, step_val, name="nextvar")
 		self.builder.store(next_val, iter_ptr)
 
+		if self.builder.block is None:
+			raise CodegenError("For builder.block is None")
+		
 		# Loop back to condition
 		if not self.builder.block.is_terminated:
 			self.builder.branch(cond_bb)
