@@ -40,6 +40,9 @@ class Function(TopLevel):
 	ret_type: Optional[str]
 	body: Body
 
+	def is_anonymous(self):
+		return self.name.startswith("_anon")
+
 @dataclass
 class Program(Node):
 	"""Root node for anonymous functions."""

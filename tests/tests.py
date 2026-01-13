@@ -77,17 +77,18 @@ class TestPikeGrammarAndAST(unittest.TestCase):
         
         # First statement wrapped in _anon1
         f1 = ast.functions[0]
-        self.assertTrue(f1.name.startswith("_anon"))
+        self.assertTrue(f1.is_anonymous())
         self.assertIsInstance(f1.body.statements[0], Assignment)
         self.assertEqual(f1.body.statements[0].name, "x")
 
         # Second item is explicit function
         f2 = ast.functions[1]
+        self.assertFalse(f2.is_anonymous())
         self.assertEqual(f2.name, "my_func")
 
         # Third statement wrapped in _anon2 (counter incremented)
         f3 = ast.functions[2]
-        self.assertTrue(f3.name.startswith("_anon"))
+        self.assertTrue(f3.is_anonymous())
         self.assertNotEqual(f1.name, f3.name) # parsers should produce unique anon names
         self.assertEqual(f3.body.statements[0].name, "y")
 
