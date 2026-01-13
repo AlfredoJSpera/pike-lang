@@ -1,8 +1,7 @@
-import pprint
 from ast_nodes import PikeTransformer, Program
 from grammar import PIKE_GRAMMAR
 import llvmlite.binding as llvm
-from lark import Lark, Tree
+from lark import Lark
 from utils import *
 
 class ParsingException(Exception): pass

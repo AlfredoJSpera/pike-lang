@@ -1,5 +1,4 @@
 import argparse
-#import pretty_errors
 from evaluator import PikeEvaluator
 
 code = """
