@@ -1,17 +1,21 @@
 import argparse
-from evaluator import PikeEvaluator
+from pike.evaluator import PikeEvaluator
 
 code = """
-x := 10 + 5 * 2 < 100;
+!!("--- Counting to 4 ---");
+for (i, 0; i < 5; 1) {
+    !("Number: ");
+    !!(i);
+}
 """
 
 def main(args):
 	pike = PikeEvaluator()
 	pike.evaluate(
 		code, 
-		print_lark_dump=True, 
-		print_ast_dump=True,
-		print_llvm_dump=True,
+		print_lark_dump=False, 
+		print_ast_dump=False,
+		print_llvm_dump=False,
 	)
 
 if __name__ == "__main__":

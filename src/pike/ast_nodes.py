@@ -5,16 +5,16 @@ from lark import Transformer
 
 # ===== Define base classes
 
-class AstNode:
+class NodeAst:
 	pass
 
-class TopLevel(AstNode):
+class TopLevel(NodeAst):
 	pass
 
-class Statement(TopLevel):
+class StatementAst(TopLevel):
 	pass
 
-class Expression(Statement):
+class ExpressionAst(StatementAst):
 	pass
 
 # ===== Enums
@@ -27,89 +27,89 @@ class PikeType(Enum):
 # ===== Data holders
 
 @dataclass
-class Argument(AstNode):
-	value: Expression
+class ArgumentAst(NodeAst):
+	value: ExpressionAst
 
 @dataclass
-class Parameter(AstNode):
+class ParameterAst(NodeAst):
 	name: str
 	type_name: PikeType
 
 @dataclass
-class Body(AstNode):
-	statements: List[Statement]
+class BodyAst(NodeAst):
+	statements: List[StatementAst]
 
 # ===== Functions
 
 @dataclass
-class Function(TopLevel):
+class FunctionAst(TopLevel):
 	name: str
-	parameters: List[Parameter]
+	parameters: List[ParameterAst]
 	ret_type: Optional[PikeType]
-	body: Body
+	body: BodyAst
 
 	def is_anonymous(self):
 		return self.name.startswith("_anon")
 
 @dataclass
-class Program(AstNode):
+class ProgramAst(NodeAst):
 	"""Root node of the AST containing a list of anonymous functions."""
-	functions: List[Function]
+	functions: List[FunctionAst]
 
 # ===== Expressions
 
 @dataclass
-class NumberValue(Expression):
+class NumberValueAst(ExpressionAst):
 	value: float
 
 @dataclass
-class StringValue(Expression):
+class StringValueAst(ExpressionAst):
 	value: str
 
 @dataclass
-class Variable(Expression):
+class VariableAst(ExpressionAst):
 	name: str
 
 @dataclass
-class BinaryOperation(Expression):
+class BinaryOperationAst(ExpressionAst):
 	operator: str
-	left: Expression
-	right: Expression
+	left: ExpressionAst
+	right: ExpressionAst
 
 @dataclass
-class FunctionCall(Expression):
+class FunctionCallAst(ExpressionAst):
 	called_name: str
-	args: List[Argument]
+	args: List[ArgumentAst]
 
 # ===== Statements
 
 @dataclass
-class Assignment(Statement):
+class AssignmentAst(StatementAst):
 	variable_name: str
-	value: Expression
+	value: ExpressionAst
 
 @dataclass
-class Return(Statement):
-	expression: Optional[Expression]
+class ReturnAst(StatementAst):
+	expression: Optional[ExpressionAst]
 
 @dataclass
-class Print(Statement):
-	expression: Expression
+class PrintAst(StatementAst):
+	expression: ExpressionAst
 	new_line: bool
 
 @dataclass
-class IfElse(Statement):
-	condition: Expression
-	then_block: Body
-	else_block: Optional[Body] = None
+class IfElseAst(StatementAst):
+	condition: ExpressionAst
+	then_block: BodyAst
+	else_block: Optional[BodyAst] = None
 
 @dataclass
-class ForLoop(Statement):
+class ForLoopAst(StatementAst):
 	iterator: str
-	start_val: Expression
-	condition: Expression
-	step: Expression
-	body: Body
+	start_val: ExpressionAst
+	condition: ExpressionAst
+	step: ExpressionAst
+	body: BodyAst
 
 
 # ===== Transformer
@@ -120,22 +120,23 @@ class PikeTransformer(Transformer):
 
 	def start(self, items):
 		functions = []
+		main_statements = []
 
 		for item in items:
-			if isinstance(item, Function):
+			if isinstance(item, FunctionAst):
 				functions.append(item)
-			elif isinstance(item, Statement):
-				self.anon_counter += 1
-				name = f"_anon{self.anon_counter}"
-				func = Function(
-					name=name, 
-					parameters=[], 
-					ret_type=None, 
-					body=Body(statements=[item]) 
-				)
-				functions.append(func)
+			elif isinstance(item, StatementAst):
+				main_statements.append(item)
 		
-		return Program(functions)
+		if main_statements:
+			functions.append(FunctionAst(
+				name="main", 
+				parameters=[], 
+				ret_type=None, 
+				body=BodyAst(statements=main_statements) 
+			))
+		
+		return ProgramAst(functions)
 
 	def top_level_stmt(self, items):
 		return items[0]
@@ -151,11 +152,11 @@ class PikeTransformer(Transformer):
 		else:
 			ret_type = PikeType.VOID
 		
-		return Function(
+		return FunctionAst(
 			name=str(items[0]), 
 			parameters=parameters, 
 			ret_type=ret_type, 
-			body=Body(statements=items[3]),
+			body=BodyAst(statements=items[3]),
 		)
 
 	def function_call(self, items):
@@ -164,7 +165,7 @@ class PikeTransformer(Transformer):
 		else:
 			args = []
 
-		return FunctionCall(
+		return FunctionCallAst(
 			called_name=str(items[0]), 
 			args=args
 		)
@@ -178,7 +179,7 @@ class PikeTransformer(Transformer):
 		return items
 
 	def par(self, items):
-		return Parameter(
+		return ParameterAst(
 			name=str(items[0]), 
 			type_name=PikeType(str(items[1])),
 		)
@@ -188,63 +189,63 @@ class PikeTransformer(Transformer):
 		return items 
 
 	def assignment(self, items):
-		return Assignment(
+		return AssignmentAst(
 			variable_name=str(items[0]), 
 			value=items[1],
 		)
 
 	def return_stmt(self, items):
-		return Return(expression=items[0])
+		return ReturnAst(expression=items[0])
 
 	def print_nl(self, items):
-		return Print(
+		return PrintAst(
 			expression=items[0], 
 			new_line=True
 		)
 
 	def print_no_nl(self, items):
-		return Print(
+		return PrintAst(
 			expression=items[0], 
 			new_line=False
 		)
 
 	def if_stmt(self, items):
 		if items[2] is not None:
-			else_block = Body(statements=items[2])
+			else_block = BodyAst(statements=items[2])
 		else:
 			else_block = None
 
-		return IfElse(
+		return IfElseAst(
 			condition=items[0],
-			then_block=Body(statements=items[1]), 
+			then_block=BodyAst(statements=items[1]), 
 			else_block=else_block,
 		)
 
 	def for_stmt(self, items):
-		return ForLoop(
+		return ForLoopAst(
 			iterator=str(items[0]),
 			start_val=items[1],
 			condition=items[2],
 			step=items[3],
-			body=Body(statements=items[4])
+			body=BodyAst(statements=items[4])
 		)
 
 	def expr_stmt(self, items):
 		return items[0]
 
-	def add(self, items): return BinaryOperation('+', items[0], items[1])
-	def sub(self, items): return BinaryOperation('-', items[0], items[1])
-	def mul(self, items): return BinaryOperation('*', items[0], items[1])
-	def div(self, items): return BinaryOperation('/', items[0], items[1])
-	def lt(self, items): return BinaryOperation('<', items[0], items[1])
-	def gt(self, items): return BinaryOperation('>', items[0], items[1])
+	def add(self, items): return BinaryOperationAst('+', items[0], items[1])
+	def sub(self, items): return BinaryOperationAst('-', items[0], items[1])
+	def mul(self, items): return BinaryOperationAst('*', items[0], items[1])
+	def div(self, items): return BinaryOperationAst('/', items[0], items[1])
+	def lt(self, items): return BinaryOperationAst('<', items[0], items[1])
+	def gt(self, items): return BinaryOperationAst('>', items[0], items[1])
 
 	def number(self, items):
-		return NumberValue(float(items[0]))
+		return NumberValueAst(float(items[0]))
 
 	def string(self, items):
 		# Remove quotes
-		return StringValue(str(items[0])[1:-1])
+		return StringValueAst(str(items[0])[1:-1])
 
 	def var_load(self, items):
-		return Variable(str(items[0]))
+		return VariableAst(str(items[0]))

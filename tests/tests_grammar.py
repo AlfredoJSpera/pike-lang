@@ -1,10 +1,10 @@
 import unittest
 from lark import Lark, exceptions
-from src.grammar import PIKE_GRAMMAR
-from src.ast_nodes import (
-	PikeTransformer, PikeType, Program, Function, Body, Parameter,
-	Assignment, Return, Print, IfElse, ForLoop,
-	BinaryOperation, NumberValue, StringValue, Variable, FunctionCall
+from pike.grammar import PIKE_GRAMMAR
+from pike.ast_nodes import (
+	PikeTransformer, PikeType, ProgramAst, FunctionAst, BodyAst, ParameterAst,
+	AssignmentAst, ReturnAst, PrintAst, IfElseAst, ForLoopAst,
+	BinaryOperationAst, NumberValueAst, StringValueAst, VariableAst, FunctionCallAst
 )
 
 class TestPikeGrammarAndAST(unittest.TestCase):
@@ -41,30 +41,30 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		stmt = ast.functions[0].body.statements[0]
 		
 		# Root should be Less Than (<)
-		self.assertIsInstance(stmt, BinaryOperation)
+		self.assertIsInstance(stmt, BinaryOperationAst)
 		self.assertEqual(stmt.operator, '<')
 		
 		# Right side: 100
-		self.assertIsInstance(stmt.right, NumberValue)
+		self.assertIsInstance(stmt.right, NumberValueAst)
 		self.assertEqual(stmt.right.value, 100.0)
 		
 		# Left side: Addition (+)
 		left_add = stmt.left
-		self.assertIsInstance(left_add, BinaryOperation)
+		self.assertIsInstance(left_add, BinaryOperationAst)
 		self.assertEqual(left_add.operator, '+')
 		self.assertEqual(left_add.left.value, 10.0)
 		
 		# Right side of Addition: Multiplication (*) (demonstrating precedence)
 		right_mul = left_add.right
-		self.assertIsInstance(right_mul, BinaryOperation)
+		self.assertIsInstance(right_mul, BinaryOperationAst)
 		self.assertEqual(right_mul.operator, '*')
 		self.assertEqual(right_mul.left.value, 5.0)
 		self.assertEqual(right_mul.right.value, 2.0)
 
 	def test_top_level_wrapping(self):
 		"""
-		Ensure loose top-level statements are wrapped in 
-		anonymous functions with unique names, while explicit functions remain untouched.
+		Ensure loose top-level statements are wrapped in a single 'main'
+		function, while explicit functions remain untouched.
 		"""
 		code = """
 		x := 1;
@@ -73,24 +73,29 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		"""
 		ast = self.parse_to_ast(code)
 		
-		self.assertEqual(len(ast.functions), 3)
+		# Expect 2 functions: 'my_func' (explicit) and 'main' (implicit wrapper)
+		self.assertEqual(len(ast.functions), 2)
 		
-		# First statement wrapped in _anon1
-		f1 = ast.functions[0]
-		self.assertTrue(f1.is_anonymous())
-		self.assertIsInstance(f1.body.statements[0], Assignment)
-		self.assertEqual(f1.body.statements[0].variable_name, "x")
+		# 1. Verify Explicit Function
+		# The transformer loops through items, appending explicit functions immediately.
+		f_explicit = ast.functions[0]
+		self.assertEqual(f_explicit.name, "my_func")
 
-		# Second item is explicit function
-		f2 = ast.functions[1]
-		self.assertFalse(f2.is_anonymous())
-		self.assertEqual(f2.name, "my_func")
-
-		# Third statement wrapped in _anon2 (counter incremented)
-		f3 = ast.functions[2]
-		self.assertTrue(f3.is_anonymous())
-		self.assertNotEqual(f1.name, f3.name) # parsers should produce unique anon names
-		self.assertEqual(f3.body.statements[0].variable_name, "y")
+		# 2. Verify Main Wrapper
+		# The transformer appends 'main' containing all loose statements at the end.
+		f_main = ast.functions[1]
+		self.assertEqual(f_main.name, "main")
+		
+		# 'main' should contain BOTH assignments in order
+		self.assertEqual(len(f_main.body.statements), 2)
+		
+		stmt1 = f_main.body.statements[0]
+		self.assertIsInstance(stmt1, AssignmentAst)
+		self.assertEqual(stmt1.variable_name, "x")
+		
+		stmt2 = f_main.body.statements[1]
+		self.assertIsInstance(stmt2, AssignmentAst)
+		self.assertEqual(stmt2.variable_name, "y")
 
 	def test_full_function_definition(self):
 		"""
@@ -120,8 +125,8 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		
 		# Body
 		self.assertEqual(len(func.body.statements), 2)
-		self.assertIsInstance(func.body.statements[0], Assignment)
-		self.assertIsInstance(func.body.statements[1], Return)
+		self.assertIsInstance(func.body.statements[0], AssignmentAst)
+		self.assertIsInstance(func.body.statements[1], ReturnAst)
 
 	def test_function_definition_return_types(self):
 		code = """
@@ -165,7 +170,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast = self.parse_to_ast(wrapped_code)
 		
 		outer_if = ast.functions[0].body.statements[0]
-		self.assertIsInstance(outer_if, IfElse)
+		self.assertIsInstance(outer_if, IfElseAst)
 		
 		# Check Condition
 		self.assertEqual(outer_if.condition.operator, '<')
@@ -174,13 +179,13 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		then_stmts = outer_if.then_block.statements
 		self.assertEqual(len(then_stmts), 1)
 		nested_if = then_stmts[0]
-		self.assertIsInstance(nested_if, IfElse)
+		self.assertIsInstance(nested_if, IfElseAst)
 		self.assertIsNone(nested_if.else_block) # Inner if has no else
 		
 		# Check Else Block (Return)
 		else_stmts = outer_if.else_block.statements
 		self.assertEqual(len(else_stmts), 1)
-		self.assertIsInstance(else_stmts[0], Return)
+		self.assertIsInstance(else_stmts[0], ReturnAst)
 
 	def test_print_statements(self):
 		"""
@@ -192,16 +197,22 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		"""
 		ast = self.parse_to_ast(code)
 		
-		# These are loose statements, so they get wrapped in separate anon functions
+		# Loose statements are grouped into a single 'main' function
+		self.assertEqual(len(ast.functions), 1)
+		
+		main_func = ast.functions[0]
+		self.assertEqual(main_func.name, "main")
+		self.assertEqual(len(main_func.body.statements), 2)
+		
 		# Statement 1
-		stmt1 = ast.functions[0].body.statements[0]
-		self.assertIsInstance(stmt1, Print)
+		stmt1 = main_func.body.statements[0]
+		self.assertIsInstance(stmt1, PrintAst)
 		self.assertFalse(stmt1.new_line, "! should have new_line=False")
 		self.assertEqual(stmt1.expression.value, "NoLine")
 
 		# Statement 2
-		stmt2 = ast.functions[1].body.statements[0]
-		self.assertIsInstance(stmt2, Print)
+		stmt2 = main_func.body.statements[1]
+		self.assertIsInstance(stmt2, PrintAst)
 		self.assertTrue(stmt2.new_line, "!! should have new_line=True")
 
 	def test_for_loop_structure(self):
@@ -213,15 +224,15 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast = self.parse_to_ast(code)
 		
 		loop = ast.functions[0].body.statements[0]
-		self.assertIsInstance(loop, ForLoop)
+		self.assertIsInstance(loop, ForLoopAst)
 		
 		self.assertEqual(loop.iterator, "i")
-		self.assertIsInstance(loop.start_val, NumberValue)
+		self.assertIsInstance(loop.start_val, NumberValueAst)
 		self.assertEqual(loop.start_val.value, 0.0)
 		
-		self.assertIsInstance(loop.condition, BinaryOperation)
+		self.assertIsInstance(loop.condition, BinaryOperationAst)
 		
-		self.assertIsInstance(loop.step, NumberValue)
+		self.assertIsInstance(loop.step, NumberValueAst)
 		self.assertEqual(loop.step.value, 1.0)
 		
 		self.assertEqual(len(loop.body.statements), 1)
@@ -256,9 +267,9 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		loop_var = ast_var.functions[0].body.statements[0]
 		
 		# Verify the condition is parsed as a BinaryOperation (+) rather than failing
-		self.assertIsInstance(loop_var.condition, BinaryOperation)
+		self.assertIsInstance(loop_var.condition, BinaryOperationAst)
 		self.assertEqual(loop_var.condition.operator, '+')
-		self.assertIsInstance(loop_var.condition.left, Variable)
+		self.assertIsInstance(loop_var.condition.left, VariableAst)
 		self.assertEqual(loop_var.condition.left.name, 'i')
 
 		# Case 2: Constant Arithmetic Expression (2 + 10)
@@ -267,9 +278,9 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast_const = self.parse_to_ast(code_const)
 		loop_const = ast_const.functions[0].body.statements[0]
 		
-		self.assertIsInstance(loop_const.condition, BinaryOperation)
+		self.assertIsInstance(loop_const.condition, BinaryOperationAst)
 		self.assertEqual(loop_const.condition.operator, '+')
-		self.assertIsInstance(loop_const.condition.left, NumberValue)
+		self.assertIsInstance(loop_const.condition.left, NumberValueAst)
 		self.assertEqual(loop_const.condition.left.value, 2.0)
 
 		# Case 3: Single Number Truthy Condition (Common C-style infinite loop pattern)
@@ -278,7 +289,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast_truthy = self.parse_to_ast(code_truthy)
 		loop_truthy = ast_truthy.functions[0].body.statements[0]
 		
-		self.assertIsInstance(loop_truthy.condition, NumberValue)
+		self.assertIsInstance(loop_truthy.condition, NumberValueAst)
 		self.assertEqual(loop_truthy.condition.value, 1.0)
 
 	def test_function_calls_and_args(self):
@@ -290,20 +301,20 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		
 		# Expression statement wrapped in anon func
 		expr_stmt = ast.functions[0].body.statements[0]
-		self.assertIsInstance(expr_stmt, FunctionCall)
+		self.assertIsInstance(expr_stmt, FunctionCallAst)
 		self.assertEqual(expr_stmt.called_name, "my_func")
 		
 		args = expr_stmt.args
 		self.assertEqual(len(args), 3)
 		
 		# Arg 0: Binary Op
-		self.assertIsInstance(args[0], BinaryOperation)
+		self.assertIsInstance(args[0], BinaryOperationAst)
 		
 		# Arg 1: Number
-		self.assertIsInstance(args[1], NumberValue)
+		self.assertIsInstance(args[1], NumberValueAst)
 		
 		# Arg 2: Nested Function Call
-		self.assertIsInstance(args[2], FunctionCall)
+		self.assertIsInstance(args[2], FunctionCallAst)
 		self.assertEqual(args[2].called_name, "nesting")
 
 	def test_function_calls_in_control_flow(self):
@@ -318,9 +329,9 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast_if = self.parse_to_ast(code_if)
 		stmt_if = ast_if.functions[0].body.statements[0]
 		
-		self.assertIsInstance(stmt_if, IfElse)
+		self.assertIsInstance(stmt_if, IfElseAst)
 		# Condition should be a FunctionCall, not a binary op or variable
-		self.assertIsInstance(stmt_if.condition, FunctionCall)
+		self.assertIsInstance(stmt_if.condition, FunctionCallAst)
 		self.assertEqual(stmt_if.condition.called_name, "is_ready")
 
 		# Case 2: Function call inside a complex comparison 'if'
@@ -329,12 +340,12 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast_complex_if = self.parse_to_ast(code_complex_if)
 		stmt_complex_if = ast_complex_if.functions[0].body.statements[0]
 		
-		self.assertIsInstance(stmt_complex_if, IfElse)
+		self.assertIsInstance(stmt_complex_if, IfElseAst)
 		# Root is comparison (>)
-		self.assertIsInstance(stmt_complex_if.condition, BinaryOperation) 
+		self.assertIsInstance(stmt_complex_if.condition, BinaryOperationAst) 
 		self.assertEqual(stmt_complex_if.condition.operator, '>')
 		# Left side is the function call
-		self.assertIsInstance(stmt_complex_if.condition.left, FunctionCall)
+		self.assertIsInstance(stmt_complex_if.condition.left, FunctionCallAst)
 		self.assertEqual(stmt_complex_if.condition.left.called_name, "get_value")
 
 		# Case 3: Function call as a 'for' loop condition
@@ -343,12 +354,12 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast_for = self.parse_to_ast(code_for)
 		loop = ast_for.functions[0].body.statements[0]
 		
-		self.assertIsInstance(loop, ForLoop)
+		self.assertIsInstance(loop, ForLoopAst)
 		# The condition slot (2nd slot) should be the function call
-		self.assertIsInstance(loop.condition, FunctionCall)
+		self.assertIsInstance(loop.condition, FunctionCallAst)
 		self.assertEqual(loop.condition.called_name, "check_limit")
 		# Verify arguments were parsed correctly inside that call
-		self.assertIsInstance(loop.condition.args[0], Variable)
+		self.assertIsInstance(loop.condition.args[0], VariableAst)
 		self.assertEqual(loop.condition.args[0].name, "i")
 
 	def test_negative_syntax_missing_semicolon(self):
@@ -385,7 +396,7 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		ast = self.parse_to_ast(code)
 		
 		assign = ast.functions[0].body.statements[0]
-		self.assertIsInstance(assign.value, StringValue)
+		self.assertIsInstance(assign.value, StringValueAst)
 		# The AST transformer strips quotes via [1:-1]
 		self.assertEqual(assign.value.value, "hello_world")
 
