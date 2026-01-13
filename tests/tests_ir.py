@@ -323,6 +323,50 @@ class TestPikeIRAndExecution(unittest.TestCase):
 			self.compile_and_run(code)
 		
 		self.assertIn("Cannot return a value from a void function", str(cm.exception))
+	
+	def test_complex_integration_mixed_types(self):
+		"""
+		Verify mixed types (num, str), function calls, loops, 
+		and printing (IO) work together.
+		
+		Specifically targets the 'Cannot print unknown type' regression where 
+		String arguments (i8*) were not being allocated on the stack correctly.
+		"""
+		code = """
+		defunc add(a: num, b: num) %num {
+			ret a + b;
+		}
+
+		defunc greet(name: str) {
+			# This line previously caused the 'Cannot print unknown type' error
+			# because 'name' was being loaded as 'i8' instead of 'i8*'
+			!!(name);
+		}
+
+		defunc test() %num {
+			x := 10;
+			y := 20;
+			sum := add(x, y); # Expect 30.0
+			
+			!("[TEST] Sum calculated: ");
+			!!(sum);
+			
+			# Verify string passing doesn't crash LLVM
+			greet("Integration Test World");
+			
+			# Verify loop logic persists
+			iterations := 0;
+			for(i, 0; i < 5; 1) {
+				iterations := iterations + 1;
+			}
+			
+			# Return combined result to assert correctness
+			# 30 (sum) + 5 (iterations) = 35
+			ret sum + iterations;
+		}
+		"""
+		# If the string printing crashes, this line will never be reached/asserted.
+		self.assertEqual(self.compile_and_run(code), 35.0)
 
 if __name__ == "__main__":
 	unittest.main()
