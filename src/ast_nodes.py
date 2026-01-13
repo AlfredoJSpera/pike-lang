@@ -27,6 +27,24 @@ class Parameter(Node):
 	name: str
 	type_name: str
 
+@dataclass
+class Body(Node):
+	statements: List[Statement]
+
+# ===== Functions
+
+@dataclass
+class Function(TopLevel):
+	name: str
+	parameters: List[Parameter]
+	ret_type: Optional[str]
+	body: Body
+
+@dataclass
+class Program(Node):
+	"""Root node for anonymous functions."""
+	functions: List[Function]
+
 # ===== Expressions
 
 @dataclass
@@ -69,10 +87,6 @@ class Print(Statement):
 	new_line: bool
 
 @dataclass
-class Body(Node):
-	statements: List[Statement]
-
-@dataclass
 class IfElse(Statement):
 	condition: Expression
 	then_block: Body
@@ -85,17 +99,6 @@ class ForLoop(Statement):
 	condition: Expression
 	step: Expression
 	body: Body
-
-@dataclass
-class Function(TopLevel):
-	name: str
-	parameters: List[Parameter]
-	ret_type: str
-	body: Body
-
-@dataclass
-class Program(Node):
-	functions: List[Function]
 
 
 # --- Transformer ---
@@ -116,7 +119,7 @@ class PikeTransformer(Transformer):
 				func = Function(
 					name=name, 
 					parameters=[], 
-					ret_type="void", 
+					ret_type=None, 
 					body=Body(statements=[item]) 
 				)
 				functions.append(func)
@@ -129,10 +132,15 @@ class PikeTransformer(Transformer):
 	def function_def(self, items):
 		name = str(items[0])
 		parameters = items[1] if items[1] is not None else []
-		ret_type = str(items[2]) if items[2] is not None else "void"
+		ret_type = str(items[2]) if items[2] is not None else None
 		body = Body(statements=items[3]) 
 
-		return Function(name, parameters, ret_type, body)
+		return Function(
+			name=name, 
+			parameters=parameters, 
+			body=body,
+			ret_type=ret_type, 
+		)
 
 	def function_call(self, items):
 		name = str(items[0])

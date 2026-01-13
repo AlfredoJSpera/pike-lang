@@ -5,10 +5,10 @@ PIKE_GRAMMAR = r"""
 		| statement -> top_level_stmt
 	
 	// Function Definition
-	function_def: "defunc" NAME "(" [parameters] ")" ["%" NAME] "{" body "}"
+	function_def: "defunc" NAME "(" [parameters] ")" ["%" TYPE_NAME] "{" body "}"
 	
 	parameters: par ("," par)*
-	par: NAME ":" NAME
+	par: NAME ":" TYPE_NAME
 
 	body: statement*
 
@@ -55,6 +55,7 @@ PIKE_GRAMMAR = r"""
 	// Terminals
 	NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 	NUMBER: /\d+(\.\d+)?/
+	TYPE_NAME: "num" | "str"
 	
 	%import common.ESCAPED_STRING
 	%import common.WS
