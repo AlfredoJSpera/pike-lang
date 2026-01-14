@@ -1,3 +1,4 @@
+1+1;
 defunc add(a: num, b: num) %num {
 	ret a + b;
 }
@@ -16,4 +17,8 @@ for(i, 0; i < 5; 1) {
 	!("Loop iteration: ");
 	!!(i);
 }
-greet("World");
+if (1 < 2) {
+	greet("World");
+} else {
+	greet("no");
+}

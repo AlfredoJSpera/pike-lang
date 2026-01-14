@@ -11,7 +11,7 @@ def print_error(message: str):
 def print_boxed(label: str, text: str):
 	"""Prints something inside a box with a label."""
 
-	def visible_len(text: str) -> int:
+	def visible_len(text: str):
 		"""Calculates the length of a string excluding ANSI escape sequences."""
 		ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 		return len(ansi_escape.sub('', text))

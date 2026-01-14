@@ -27,7 +27,6 @@ PIKE_GRAMMAR = r"""
 	
 	if_stmt: "if" "(" expression ")" "{" body "}" ["else" "{" body "}"]
 	
-	// FIXED: Now references the 'number' rule defined below
 	for_stmt: "for" "(" NAME "," number ";" expression ";" number ")" "{" body "}"
 
 	// Expressions with Precedence: (<, >) <- (+, -) <- (*, /) <- atom
