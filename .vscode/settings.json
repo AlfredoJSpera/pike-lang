@@ -5,10 +5,9 @@
 		"**/.hg": true,
 		"**/.DS_Store": true,
 		"**/Thumbs.db": true,
-		"__pycache__": true,
-		".pytest_cache": true,
+		"**/pytest_cache": true,
+		"**/__pycache__": true,
 		".vscode": true,
-		"**/__pycache__": true
 	},
 	"explorerExclude.backup": {},
 	"python.testing.unittestArgs": [
