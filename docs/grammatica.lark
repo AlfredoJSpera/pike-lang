@@ -1,82 +1,74 @@
-?start: code_block
+start: top_level*
 
-code_block: instruction*
+?top_level: function_def
+	| statement -> top_level_stmt
 
-?instruction: func_definition
-		| statement
+// Function Definition
+function_def: "defunc" NAME "(" [parameters] ")" ["%" NUM_NAME] "{" body "}"
 
-// Functions
-func_definition: "defunc" prototype body
-prototype: NAME "(" arg_sequence ")" ("%" type)?
-arg_sequence: (arg ("," arg)*)?
-arg: NAME ":" type
-body: "{" statement* "}"
+parameters: par ("," par)*
+par: NAME ":" TYPE_NAME
+
+body: statement*
 
 // Statements
-statement: regular_statement ";"
-		| if_statement
-		| for_statement
-
-?regular_statement: assignment
-		| return
-		| print_no_nl
-		| print_with_nl
-		| expression
+?statement: assignment ";"
+	| return_stmt ";"
+	| print_stmt ";"
+	| if_stmt
+	| for_stmt
+	| expression ";" -> expr_stmt
 
 assignment: NAME ":=" expression
-return: "ret" expression?
-print_no_nl: "!" "(" expression ")"
-print_with_nl: "!!" "(" expression ")"
+return_stmt: "ret" expression
+print_stmt: "!" "(" expression ")" -> print_no_nl
+	| "!!" "(" expression ")" -> print_nl
 
-// Expressions
-expression: compare
+if_stmt: "if" "(" expression ")" "{" body "}" ["else" "{" body "}"]
 
-// Precedence of operators ("<, >" -> "+, -" -> "*, /" -> atom)
-?compare: compare_operand ((LESS | GREATER) compare_operand)*
-	?compare_operand: add
-?add: add_operand ((PLUS | MINUS) add_operand)*
-	?add_operand: product
-?product: product_operand ((STAR | SLASH) product_operand)*
-	?product_operand: atom
+for_stmt: "for" "(" NAME "," number ";" expression ";" number ")" "{" body "}"
 
-// Atomic objects
+// Expressions with Precedence: (<, >) <- (+, -) <- (*, /) <- atom
+?expression: comparison
+
+// Precedence 3
+?comparison: sum
+	| sum "<" sum  -> lt
+	| sum ">" sum  -> gt
+
+// Precedence 2
+?sum: product
+	| sum "+" product -> add
+	| sum "-" product -> sub
+
+// Precedence 1
+?product: atom
+	| product "*" atom -> mul
+	| product "/" atom -> div
+
+// Highest precedence
 ?atom: number
 	| string
-	| variable
-	| func_call
+	| var_load
+	| function_call
 	| "(" expression ")"
 
 number: NUMBER
-string: STRING
-variable: NAME
-func_call: NAME "(" (expression ("," expression)*)? ")"
+string: ESCAPED_STRING
+var_load: NAME
 
-// Control flow
-if_statement: "if" "(" expression ")" body ("else" body)?
-for_statement: "for" "(" assignment? ";" expression ";" assignment? ")" body
-
-// Types
-type: NUM_TYPE
-	| STR_TYPE
+function_call : NAME "(" [args] ")"
+args: expression ("," expression)*
 
 // Terminals
-PLUS: "+"
-MINUS: "-"
-STAR: "*"
-SLASH: "/"
-LESS: "<"
-GREATER: ">"
+NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+NUMBER: /\d+(\.\d+)?/
+TYPE_NAME: "num" | "str"
+NUM_NAME: "num"
 
-NUM_TYPE: "num"
-STR_TYPE: "str"
-
-// Import
-%import common.SH_COMMENT 		-> COMMENT
-%import common.CNAME 			-> NAME
-%import common.ESCAPED_STRING 	-> STRING
-%import common.NUMBER
+%import common.ESCAPED_STRING
 %import common.WS
+%import common.SH_COMMENT
 
-// Ignore
 %ignore WS
-%ignore COMMENT
+%ignore SH_COMMENT
