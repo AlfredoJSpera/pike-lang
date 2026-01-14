@@ -3,7 +3,7 @@ import ctypes
 import llvmlite.binding as llvm
 from lark import Lark
 from pike.evaluator import *
-from pike.codegen import LLVMCodeGenerator
+from pike.codegen import CodegenError, LLVMCodeGenerator
 from pike.grammar import PIKE_GRAMMAR
 
 # Ensure LLVM is initialized globally once
@@ -367,6 +367,62 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		"""
 		# If the string printing crashes, this line will never be reached/asserted.
 		self.assertEqual(self.compile_and_run(code), 35.0)
+	
+	def test_string_assignment(self):
+		"""
+		Verify correct string type assignment.
+		"""
+		code = """
+		x := "hello";
+		!!(x);
+		"""
+		
+		self.compile_and_run(code)
+	
+	def test_if_else_correct_value(self):
+		"""
+		Verify if the variable outside the if is correct.
+		"""
+		code = """
+		defunc test() % num {
+			if (1 > 2) {
+				x := 0;
+				y := 0;
+			} else {
+				x := 1;
+				y := 1;
+			}
+			ret x + y;
+		}
+		"""
+
+		self.assertEqual(self.compile_and_run(code), 2.0)
+	
+	def test_for_iterator_deletion(self):
+		code = """
+		for(i, 0; i < 5; 1) {
+			!("Loop iteration1: ");
+			!!(i);
+		}
+		!!(i);
+		"""
+
+		with self.assertRaises(Exception) as cm:
+			self.compile_and_run(code)
+		self.assertIn("Undefined variable: i", str(cm.exception))
+
+	def test_for_iterator_shadowing(self):
+		code = """
+		defunc test() % num {
+			i := 100;
+			for(i, 0; i < 5; 1) {
+				x := i;
+			}
+			ret i + x;
+		}
+		"""
+		
+		self.assertEqual(self.compile_and_run(code), 104.0)
 
 if __name__ == "__main__":
 	unittest.main()

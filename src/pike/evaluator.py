@@ -106,7 +106,7 @@ class PikeEvaluator():
 			main_pointer = engine.get_function_address("main")
 			
 			if not main_pointer:
-				raise LLVMEvaluationException("Entry function 'main' not found in generated code.")
+				raise LLVMEvaluationException("Entry function 'main()' or top-level statements not found in generated code.")
 
 			# Execute using ctypes with: void main()
 			c_func = ctypes.CFUNCTYPE(None)(main_pointer)

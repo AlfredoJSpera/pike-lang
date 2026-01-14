@@ -152,9 +152,9 @@ class ForLoopAst(StatementAst):
 		unchanging expression in the condition.
 	"""
 	iterator: str
-	start_val: ExpressionAst
+	start_val: NumberValueAst
 	condition: ExpressionAst
-	step: ExpressionAst
+	step: NumberValueAst
 	body: BodyAst
 
 

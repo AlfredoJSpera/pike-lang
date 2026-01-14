@@ -18,6 +18,8 @@ class LLVMCodeGenerator:
 		self.int8 = ir.IntType(8)
 		self.string = self.int8.as_pointer() # i8*
 		self.void = ir.VoidType()
+		self.zero_false = ir.Constant(self.double, 0.0)
+		self.one_true = ir.Constant(self.double, 1.0)
 	
 	# ==========================================
 	# MARK: PUBLIC FUNCTIONS
@@ -52,6 +54,9 @@ class LLVMCodeGenerator:
 		return getattr(self, method)(node)
 	
 	def _codegen_FunctionAst(self, node: FunctionAst):
+		"""
+		Generates the IR for a function definition.
+		"""
 		# Clear the symbol table for the new function scope
 		self.symbol_table = {}
 
@@ -66,14 +71,12 @@ class LLVMCodeGenerator:
 			node.parameters,
 			node.ret_type
 		)
-		entry_basic_block = function.append_basic_block("entry")
 		
 		# Initialize the builder with the entry at the top
+		entry_basic_block = function.append_basic_block("entry")
 		self.builder = ir.IRBuilder(entry_basic_block)
 
-		# This ensures all variables in symbol_table are pointers to storage.
-		# - 'num' (double) becomes 'double*' (load returns double)
-		# - 'str' (i8*)    becomes 'i8**'    (load returns i8*)
+		# Create a copy of the args by creating stack variables
 		for arg in function.args:
 			self._create_stack_variable(arg.name, arg, arg.type)
 		
@@ -86,14 +89,16 @@ class LLVMCodeGenerator:
 		# Only add a return if the block hasn't been terminated yet.
 		if not self.builder.block.is_terminated:
 			if node.ret_type is None or node.ret_type == PikeType.VOID:
+				# The function returns void
 				self.builder.ret_void()
 			else:
+				# The function returns a number
 				# If we have a value from the last statement, return it
-				# Otherwise, return a default 0.0 for safety
+				# Otherwise, return a default zero for safety
 				if last_val is not None:
 					self.builder.ret(last_val)
 				else:
-					self.builder.ret(ir.Constant(self.double, 0.0))
+					self.builder.ret(self.zero_false)
 		
 		# Restore previous return type context
 		self.current_function_ret_type = previous_ret_type
@@ -101,10 +106,11 @@ class LLVMCodeGenerator:
 		return function
 	
 	def _codegen_BodyAst(self, node: BodyAst):
-		last_instruction = None
+		"""Generate the IR for all the statements of a body node."""
+		last_instruction_value = None
 		for stmt in node.statements:
-			last_instruction = self._codegen(stmt)
-		return last_instruction
+			last_instruction_value = self._codegen(stmt)
+		return last_instruction_value
 	
 	# ==========================================
 	# MARK: VALUES AST CODEGEN
@@ -122,31 +128,11 @@ class LLVMCodeGenerator:
 	def _codegen_StringValueAst(self, node: StringValueAst):
 		"""
 		Creates the IR that defines the string literal as a global constant.
-		This ensures it has static storage duration and resides in read-only memory.
 		"""
-		# Add null terminator
-		string_val = node.value + '\0'
-		# Create the array type (e.g. [12 x i8])
-		c_str_type = ir.ArrayType(
-			element=self.int8, 
-			count=len(string_val)
-		)
-		
-		# Define the constant
-		global_var = ir.GlobalVariable(
-			module=self.module, 
-			typ=c_str_type, 
+		return self._create_global_string(
+			value=node.value, 
 			name=f".str_{id(node)}"
 		)
-		global_var.linkage = "internal"
-		global_var.global_constant = True
-		global_var.initializer = ir.Constant( # type: ignore
-			typ=c_str_type, 
-			constant=bytearray(string_val.encode("utf8"))
-		)
-		
-		# Bitcast the array pointer to i8* (char*) for generic use
-		return global_var.bitcast(typ=self.string)
 
 	def _codegen_VariableAst(self, node: VariableAst):
 		"""
@@ -159,7 +145,7 @@ class LLVMCodeGenerator:
 		value = self.symbol_table[node.name]
 		
 		if self.builder is None:
-			raise CodegenError("Variable builder is None")
+			raise CodegenError("builder is None")
 
 		# If it's a pointer (alloca), we load the value
 		if isinstance(value.type, ir.PointerType):
@@ -196,7 +182,7 @@ class LLVMCodeGenerator:
 			raise CodegenError(f"Incorrect number of arguments for {node.called_name}")
 
 		if self.builder is None:
-			raise CodegenError("Function Call builder is None")
+			raise CodegenError("builder is None")
 		
 		return self.builder.call(
 			fn=called_function,
@@ -213,7 +199,7 @@ class LLVMCodeGenerator:
 		right_exp = self._codegen(node.right)
 
 		if self.builder is None:
-			raise CodegenError("Binary Operation builder is None")
+			raise CodegenError("builder is None")
 
 		# Select the correct operation
 		if node.operator == '+':
@@ -236,11 +222,14 @@ class LLVMCodeGenerator:
 	# ==========================================
 	
 	def _codegen_AssignmentAst(self, node: AssignmentAst):
+		"""
+		Creates the IR for an assignment statement and the expression it has.
+		"""
 		variable_name = node.variable_name
 		expression_result = self._codegen(node.value)
 
 		if self.builder is None:
-			raise CodegenError("Assignment builder is None")
+			raise CodegenError("builder is None")
 
 		if variable_name not in self.symbol_table:
 			# New variable definition
@@ -257,69 +246,81 @@ class LLVMCodeGenerator:
 		return expression_result
 
 	def _codegen_ReturnAst(self, node: ReturnAst):
+		"""
+		Generates the IR for a return statement and the optional expression it has.
+		"""
 		if self.builder is None:
-			raise CodegenError("Return builder is None")
+			raise CodegenError("builder is None")
 		
 		if node.expression:
+			# Optional expression is present
 			if (self.current_function_ret_type is None
 				or self.current_function_ret_type == PikeType.VOID):
 				raise CodegenError("Cannot return a value from a void function.")
 			
-			retval = self._codegen(node.expression)
-			self.builder.ret(retval)
+			expression_value = self._codegen(node.expression)
+			self.builder.ret(expression_value)
 		else:
+			# Optional expression is not present
 			self.builder.ret_void()
 		
-		# Return a dummy value as the builder has stopped
-		return ir.Constant(self.double, 0.0)
-
-	
+		# The builder here is done
+		# Return a dummy value to the _codegen method
+		return self.zero_false
 
 	def _codegen_PrintAst(self, node: PrintAst):
+		"""
+		Generates the IR for a print statement and the expression it has.
+		"""
 		printf = self._declare_printf()
-		val = self._codegen(node.expression)
+		expression_value = self._codegen(node.expression)
 		
 		# Determine format string based on type
-		if val.type == self.double:
+		if expression_value.type == self.double:
 			fmt = "%f"
-		elif val.type == self.string:
+		elif expression_value.type == self.string:
 			fmt = "%s"
 		else:
-			raise CodegenError("Cannot print unknown type")
+			raise CodegenError(f"Cannot print unknown type '{expression_value.type}'")
 
 		if node.new_line:
 			fmt += "\n"
+
+		if self.builder is None:
+			raise CodegenError("builder is None")
 		
 		# Create format string constant
-		c_fmt = ir.Constant(ir.ArrayType(ir.IntType(8), len(fmt) + 1), bytearray((fmt + "\0").encode("utf8")))
-		global_fmt = ir.GlobalVariable(self.module, c_fmt.type, name=f"fmt_{id(node)}")
-		global_fmt.linkage = 'internal'
-		global_fmt.global_constant = True
-		global_fmt.initializer = c_fmt # type: ignore
-		
-		if self.builder is None:
-			raise CodegenError("Print builder is None")
-		
-		fmt_arg = self.builder.bitcast(global_fmt, self.string)
-		
-		return self.builder.call(printf, [fmt_arg, val])
+		fmt_arg = self._create_global_string(
+			value=fmt, 
+			name=f"fmt_{id(node)}"
+		)
+
+		return self.builder.call(printf, [fmt_arg, expression_value])
 
 	def _codegen_IfElseAst(self, node: IfElseAst):
-		cond_val = self._codegen(node.condition)
+		"""Generates the IR for an if/else statement."""
+		# Can be 0 or 1
+		condition_result = self._codegen(node.condition)
 
 		if self.builder is None:
-			raise CodegenError("If/Else builder is None")
+			raise CodegenError("builder is None")
 		
-		# Convert double condition to i1 (boolean)
-		# 0.0 is false, anything else is true
-		cmp = self.builder.fcmp_ordered('!=', cond_val, ir.Constant(self.double, 0.0), name="ifcond")
+		# Check if the condition is true
+		# 1 != 0 => true (1)
+		# 0 != 0 => false (0)
+		cmp = self.builder.fcmp_ordered(
+			cmpop='!=', 
+			lhs=condition_result, 
+			rhs=self.zero_false, 
+			name="ifcond"
+		)
 
 		# Create blocks
 		then_bb = self.builder.function.append_basic_block("then")
 		else_bb = self.builder.function.append_basic_block("else")
 		merge_bb = self.builder.function.append_basic_block("ifcont")
 
-		# Conditional Branch
+		# Conditional branch to a block
 		self.builder.cbranch(cmp, then_bb, else_bb)
 
 		# -- Then Block --
@@ -343,56 +344,82 @@ class LLVMCodeGenerator:
 
 		# -- Merge Block --
 		self.builder.position_at_end(merge_bb)
-		return ir.Constant(self.double, 0.0)
+
+		# The builder here is done
+		# Return a dummy value to the _codegen method
+		return self.zero_false
 
 	def _codegen_ForLoopAst(self, node: ForLoopAst):
-		# 1. Initialization (executed once)
-		# We assume the iterator is a variable assignment logic
-		start_val = self._codegen(node.start_val)
+		"""Generate the IR for a for statement."""
+		# Initialization (executed once)
+		starting_value = self._codegen(node.start_val)
 
 		if self.builder is None:
-			raise CodegenError("For builder is None")
+			raise CodegenError("builder is None")
 		
-		# Allocate iterator
-		iter_ptr = self.builder.alloca(self.double, name=node.iterator)
-		self.builder.store(start_val, iter_ptr)
-		self.symbol_table[node.iterator] = iter_ptr
+		# Save any existing variable with the same name as the counter and hide it
+		shadowed_value = self.symbol_table.get(node.iterator)
+		
+		# Allocate iterator variable
+		# Note: Even if the declaration is done at the start of the bb,
+		# 		we delete the iterator from the symbol table at the end
+		iterator_ptr = self._create_stack_variable(
+			name=node.iterator, 
+			value=starting_value, 
+			var_type=self.double
+		)
 
 		# Create blocks
-		cond_bb = self.builder.function.append_basic_block("loop_cond")
+		condition_bb = self.builder.function.append_basic_block("loop_cond")
 		body_bb = self.builder.function.append_basic_block("loop_body")
 		after_bb = self.builder.function.append_basic_block("loop_end")
 
 		# Jump to Condition
-		self.builder.branch(cond_bb)
+		self.builder.branch(condition_bb)
 
-		# 2. Condition Block
-		self.builder.position_at_end(cond_bb)
-		cond_val = self._codegen(node.condition)
+		# -- Condition Block --
+		self.builder.position_at_end(condition_bb)
+		condition_value = self._codegen(node.condition)
+		
 		# Convert to bool (i1)
-		cmp = self.builder.fcmp_ordered('!=', cond_val, ir.Constant(self.double, 0.0), name="loopcond")
+		cmp = self.builder.fcmp_ordered(
+			cmpop='!=', 
+			lhs=condition_value, 
+			rhs=self.zero_false, 
+			name="loopcond"
+		)
+
+		# Decide if to go to body or after
 		self.builder.cbranch(cmp, body_bb, after_bb)
 
-		# 3. Body Block
+		# -- Body Block --
 		self.builder.position_at_end(body_bb)
 		self._codegen(node.body)
 		
 		# Step: Load, Add, Store
-		step_val = self._codegen(node.step)
-		curr_val = self.builder.load(iter_ptr)
-		next_val = self.builder.fadd(curr_val, step_val, name="nextvar")
-		self.builder.store(next_val, iter_ptr)
+		step_value = self._codegen(node.step)
+		current_value = self.builder.load(iterator_ptr)
+		next_value = self.builder.fadd(current_value, step_value, name="nextvar")
+		self.builder.store(next_value, iterator_ptr)
 
 		if self.builder.block is None:
 			raise CodegenError("For builder.block is None")
 		
 		# Loop back to condition
 		if not self.builder.block.is_terminated:
-			self.builder.branch(cond_bb)
+			self.builder.branch(condition_bb)
 
-		# 4. After Block
+		# -- After Block --
 		self.builder.position_at_end(after_bb)
-		return ir.Constant(self.double, 0.0)
+
+		# Restore the original variable to the symbol table (un-shadowing)
+		if shadowed_value is None:
+			# No variable was shadowed, delete the iterator
+			del self.symbol_table[node.iterator]
+		else:
+			self.symbol_table[node.iterator] = shadowed_value
+		
+		return self.zero_false
 	
 	# ==========================================
 	# MARK: HELPERS
@@ -482,14 +509,53 @@ class LLVMCodeGenerator:
 		return self.builder.uitofp(cmp, self.double, name="bool_to_double") # type: ignore
 	
 	def _create_stack_variable(self, name: str, value: ir.Value, var_type: ir.Type) -> ir.AllocaInstr:
-		"""Allocates stack memory, stores the value, and updates the symbol table."""
-		# Allocate memory on stack
-		ptr = self.builder.alloca(var_type, name=name) # type: ignore
+		"""
+		Allocates stack memory in the ENTRY block (one scope per function) 
+		and stores the value in the CURRENT block.
+		"""
+		if self.builder is None:
+			raise CodegenError("builder is None")
+
+		# Save the current position of the builder so we can return to it later
+		current_block = self.builder.block
 		
-		# Store the value
-		self.builder.store(value, ptr) # type: ignore
+		# Move the builder to the start of the function's Entry Block
+		# This ensures the variable is visible to ALL blocks (Then, Else, Merge, etc.)
+		entry_block = self.builder.function.entry_basic_block
+		self.builder.position_at_start(entry_block)
+		
+		# Create the variable allocation (alloca)
+		ptr = self.builder.alloca(typ=var_type, name=name)
+		
+		# Move the builder back to where we were (e.g., inside the 'if' block)
+		self.builder.position_at_end(current_block)
+		
+		# Store the initial value at the current position
+		self.builder.store(value, ptr)
 		
 		# Register in symbol table
 		self.symbol_table[name] = ptr
 		
 		return ptr
+	
+	def _create_global_string(self, value: str, name: str):
+		"""
+		Helper to allocate a global static string constant and return a pointer to it.
+		This ensures it has static storage duration and resides in read-only memory.
+		"""
+		# Add a null terminator
+		if not value.endswith('\0'):
+			value += '\0'
+		
+		# Create the array type (e.g., [13 x i8])
+		byte_val = bytearray(value.encode("utf8"))
+		c_str_type = ir.ArrayType(self.int8, len(byte_val))
+		
+		# Define the constant global variable
+		global_var = ir.GlobalVariable(self.module, c_str_type, name=name)
+		global_var.linkage = 'internal'
+		global_var.global_constant = True
+		global_var.initializer = ir.Constant(c_str_type, byte_val) # type: ignore
+		
+		# Bitcast to i8* (char*) so it can be passed to printf or other functions
+		return global_var.bitcast(self.string)
