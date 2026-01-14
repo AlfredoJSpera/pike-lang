@@ -1,0 +1,18 @@
+NodeAst
+├── ProgramAst [functions: List[FunctionAst]]
+├── ParameterAst [name: str, type_name: PikeType]
+├── BodyAst [statements: List[StatementAst]]
+└── TopLevel
+    ├── FunctionAst [name, parameters, ret_type, body]
+    └── StatementAst
+        ├── AssignmentAst [variable_name, value]
+        ├── ReturnAst [expression]
+        ├── PrintAst [expression, new_line]
+        ├── IfElseAst [condition, then_block, else_block]
+        ├── ForLoopAst [iterator, start_val, condition, step, body]
+        └── ExpressionAst
+            ├── NumberValueAst [value: float]
+            ├── StringValueAst [value: str]
+            ├── VariableAst [name]
+            ├── FunctionCallAst [called_name, args]
+            └── BinaryOperationAst [operator, left, right]

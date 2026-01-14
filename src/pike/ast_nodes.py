@@ -44,12 +44,10 @@ class PikeType(Enum):
 	STR = "str"
 	VOID = "void"
 
-# ===== Data holders
+	def __repr__(self) -> str:
+		return self.value
 
-@dataclass
-class ArgumentAst(NodeAst):
-	"""Represents an argument passed to a function call."""
-	value: ExpressionAst
+# ===== Data holders
 
 @dataclass
 class ParameterAst(NodeAst):
@@ -113,7 +111,7 @@ class BinaryOperationAst(ExpressionAst):
 class FunctionCallAst(ExpressionAst):
 	"""An expression that calls a function and returns the result (if it has one)."""
 	called_name: str
-	args: List[ArgumentAst]
+	args: List[ExpressionAst]
 
 # ===== Statements
 
@@ -233,7 +231,7 @@ class PikeTransformer(Transformer):
 	def parameters(self, items: List[ParameterAst]):
 		return items
 
-	def args(self, items: List[ArgumentAst]):
+	def args(self, items: List[ExpressionAst]):
 		return items
 
 	def par(self, items: List[Token]):
