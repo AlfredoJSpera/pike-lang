@@ -21,7 +21,7 @@ PIKE_GRAMMAR = r"""
 		| expression ";" -> expr_stmt
 
 	assignment: NAME ":=" expression
-	return_stmt: "ret" expression
+	return_stmt: "ret" [expression]
 	print_stmt: "!" "(" expression ")" -> print_no_nl
 		| "!!" "(" expression ")" -> print_nl
 	
