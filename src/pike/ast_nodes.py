@@ -146,7 +146,7 @@ class IfElseAst(StatementAst):
 class ForLoopAst(StatementAst):
 	"""
 	A for statement.
-	Note 1: The the starting and step values are expressions,
+	Note 1: The starting and step values are expressions,
 		so they can also be comparisons that evaluate to 1 or 0.
 	Note 2: An infinite loop can be created by having a true
 		unchanging expression in the condition.

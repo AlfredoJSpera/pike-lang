@@ -16,6 +16,12 @@ You can pass a `.pike` source file as an argument:
 uv run src/main.py -f path/to/file.pike
 ```
 
+To see other commands, type:
+
+```bash
+uv run src/main.py -h
+```
+
 ## Running Tests
 
 To execute the test suite with pytest:

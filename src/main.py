@@ -47,7 +47,7 @@ if __name__ == "__main__":
 	)
 	group.add_argument(
 		"-c", "--code", 
-		help="Raw code string to execute directly from CLI"
+		help="Raw code string to execute directly from CLI (NOTE: for printing, !! does not work, but ! does)"
 	)
 
 	# Debug / Output flags
