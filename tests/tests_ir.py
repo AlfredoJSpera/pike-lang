@@ -1,3 +1,8 @@
+import sys
+import os
+# Ensure 'src' parent directory is in sys.path for 'pike' imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
 import unittest
 import ctypes
 import llvmlite.binding as llvm

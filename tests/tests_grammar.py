@@ -1,3 +1,8 @@
+import sys
+import os
+# Ensure 'src' parent directory is in sys.path for 'pike' imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
 import unittest
 from lark import Lark, exceptions
 from pike.grammar import PIKE_GRAMMAR
