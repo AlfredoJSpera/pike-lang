@@ -1,6 +1,0 @@
-graph TD
-    Start([Input: code string]) --> Parse[Lark Parser: Generate AST]
-    Parse --> GenIR[LLVMCodeGenerator: Create IR String]
-    GenIR --> CheckAnon{Anonymous<br/>Expression?}
-    CheckAnon --> |No: Named Def/Extern| Store[Update module and return None]
-    CheckAnon --> |Yes| OptExec[Optimize, execute and return result]

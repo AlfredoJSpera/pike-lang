@@ -27,5 +27,6 @@ uv run src/main.py -h
 To execute the test suite with pytest:
 
 ```bash
-uv run pytest tests/testfile.py
+uv run pytest tests/tests_grammar.py
+uv run pytest tests/tests_ir.py
 ```
