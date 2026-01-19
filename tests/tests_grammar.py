@@ -1,6 +1,6 @@
 import sys
 import os
-# Ensure 'src' parent directory is in sys.path for 'pike' imports
+# Load 'pike' module from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 import unittest
@@ -9,7 +9,7 @@ from pike.grammar import PIKE_GRAMMAR
 from pike.ast_nodes import (
 	PikeTransformer, PikeType, ProgramAst, FunctionAst, BodyAst, ParameterAst,
 	AssignmentAst, ReturnAst, PrintAst, IfElseAst, ForLoopAst,
-	BinaryOperationAst, NumberValueAst, StringValueAst, VariableAst, FunctionCallAst
+	BinaryOperationAst, NumberValueAst, StringValueAst, UserInputAst, VariableAst, FunctionCallAst
 )
 
 class TestPikeGrammarAndAST(unittest.TestCase):
@@ -404,6 +404,19 @@ class TestPikeGrammarAndAST(unittest.TestCase):
 		self.assertIsInstance(assign.value, StringValueAst)
 		# The AST transformer strips quotes via [1:-1]
 		self.assertEqual(assign.value.value, "hello_world")
+	
+	def test_user_input_parsing(self):
+		"""
+		Ensure user inputs are parsed correctly.
+		"""
+		code = "&in(var);"
+		ast = self.parse_to_ast(code)
+		
+		user_input = ast.functions[0].body.statements[0]
+		self.assertIsInstance(user_input, UserInputAst)
+		dest = user_input.destination
+		self.assertIsInstance(dest, VariableAst)
+		self.assertEqual(dest.name, "var")
 
 if __name__ == "__main__":
 	unittest.main()

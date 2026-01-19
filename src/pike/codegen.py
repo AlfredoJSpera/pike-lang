@@ -298,6 +298,42 @@ class LLVMCodeGenerator:
 		)
 
 		return self.builder.call(printf, [fmt_arg, expression_value])
+	
+	def _codegen_UserInputAst(self, node: UserInputAst):
+		"""
+		Generates IR for user input directly into a variable.
+		"""
+		scanf = self._declare_scanf()
+		variable_name = node.destination.name
+		
+		if variable_name in self.symbol_table:
+			# The variable already exists
+			ptr = self.symbol_table[variable_name]
+
+			if not isinstance(ptr.type, ir.PointerType):
+				raise CodegenError(f"Cannot input into non-pointer variable '{variable_name}'")
+		else:
+			# Create a new variable and set it to 0
+			ptr = self._create_stack_variable(
+				name=variable_name, 
+				value=self.zero_false, 
+				var_type=self.double
+			)
+		
+		if self.builder is None:
+			raise CodegenError("builder is None")
+
+		# Create format string with 64-bit float (double)
+		fmt_arg = self._create_global_string(
+			value="%lf", 
+			name=f"fmt_{id(node)}"
+		)
+
+		# scanf("%lf", &variable)
+		self.builder.call(scanf, [fmt_arg, ptr])
+
+		# Load the result value
+		return self.builder.load(ptr, name=f"val_{variable_name}")
 
 	def _codegen_IfElseAst(self, node: IfElseAst):
 		"""Generates the IR for an if/else statement."""
@@ -502,6 +538,23 @@ class LLVMCodeGenerator:
 			module=self.module, 
 			ftype=printf_ty, 
 			name="printf"
+		)
+	
+	def _declare_scanf(self):
+		if "scanf" in self.module.globals:
+			return self.module.globals["scanf"]
+		
+		# Create the scanf prototype
+		# int scanf(char *, ...)
+		scanf_ty = ir.FunctionType(
+			return_type=ir.IntType(32),
+			args=[self.string], 
+			var_arg=True
+		)
+		return ir.Function(
+			module=self.module, 
+			ftype=scanf_ty, 
+			name="scanf"
 		)
 	
 	def _compare_to_double(self, left, right, operation: Literal['<', '>', '==']):

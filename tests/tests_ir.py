@@ -1,10 +1,11 @@
 import sys
 import os
-# Ensure 'src' parent directory is in sys.path for 'pike' imports
+# Load 'pike' module from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 import unittest
 import ctypes
+import tempfile
 import llvmlite.binding as llvm
 from lark import Lark
 from pike.evaluator import *
@@ -404,6 +405,9 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		self.assertEqual(self.compile_and_run(code), 2.0)
 	
 	def test_for_iterator_deletion(self):
+		"""
+		Verify if the iterator variable is deleted.
+		"""
 		code = """
 		for(i, 0; i < 5; 1) {
 			!("Loop iteration1: ");
@@ -417,6 +421,10 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		self.assertIn("Undefined variable: i", str(cm.exception))
 
 	def test_for_iterator_shadowing(self):
+		"""
+		Verify if the iterator variable shadows another variable
+		with the same name.
+		"""
 		code = """
 		defunc test() % num {
 			i := 100;
@@ -430,6 +438,9 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		self.assertEqual(self.compile_and_run(code), 104.0)
 
 	def test_equal_op(self):
+		"""
+		Verify the correct functioning of the eq operator.
+		"""
 		code = """
 		defunc test() % num {
 			ret 0 == 0;
@@ -445,6 +456,33 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		"""
 
 		self.assertEqual(self.compile_and_run(code), 0.0)
+
+	def test_user_input_scanf(self):
+		"""
+		Verify that &in(var) correctly reads a number from stdin.
+		We simulate user input by redirecting stdin to a temporary file.
+		"""
+		code = """
+		defunc test() %num { 
+			&in(x);
+			ret x;
+		}
+		"""
+
+		input_str = b"5.5\n"
+
+		# Redirect stdin
+		with tempfile.TemporaryFile() as tmp:
+			tmp.write(input_str)
+			tmp.seek(0)
+			old_stdin = os.dup(0)
+			try:
+				os.dup2(tmp.fileno(), 0)
+				result = self.compile_and_run(code)
+				self.assertAlmostEqual(result, 5.5)
+			finally:
+				os.dup2(old_stdin, 0)
+				os.close(old_stdin)
 
 if __name__ == "__main__":
 	unittest.main()

@@ -16,6 +16,7 @@ PIKE_GRAMMAR = r"""
 	?statement: assignment ";"
 		| return_stmt ";"
 		| print_stmt ";"
+		| user_input ";"
 		| if_stmt
 		| for_stmt
 		| expression ";" -> expr_stmt
@@ -24,6 +25,8 @@ PIKE_GRAMMAR = r"""
 	return_stmt: "ret" [expression]
 	print_stmt: "!" "(" expression ")" -> print_no_nl
 		| "!!" "(" expression ")" -> print_nl
+	
+	user_input: "&" "in" "(" var_load ")"
 	
 	if_stmt: "if" "(" expression ")" "{" body "}" ["else" "{" body "}"]
 	

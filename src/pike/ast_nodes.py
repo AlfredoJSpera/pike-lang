@@ -113,6 +113,11 @@ class FunctionCallAst(ExpressionAst):
 	called_name: str
 	args: List[ExpressionAst]
 
+@dataclass
+class UserInputAst(ExpressionAst):
+	destination: VariableAst
+
+
 # ===== Statements
 
 @dataclass
@@ -191,6 +196,9 @@ class PikeTransformer(Transformer):
 		"""
 		return items[0]
 
+	def user_input(self, items):
+		return UserInputAst(items[0])
+
 	def function_def(self, items):
 		"""
 		Creates a function AST node using a list
@@ -227,6 +235,7 @@ class PikeTransformer(Transformer):
 			called_name=str(items[0]), 
 			args=args
 		)
+		
 
 	def parameters(self, items: List[ParameterAst]):
 		return items
