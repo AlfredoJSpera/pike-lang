@@ -308,6 +308,7 @@ class PikeTransformer(Transformer):
 	def div(self, items): return BinaryOperationAst('/', items[0], items[1])
 	def lt(self, items): return BinaryOperationAst('<', items[0], items[1])
 	def gt(self, items): return BinaryOperationAst('>', items[0], items[1])
+	def eq(self, items): return BinaryOperationAst('==', items[0], items[1])
 
 	def number(self, items: List[Token]):
 		"""

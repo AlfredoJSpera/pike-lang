@@ -36,6 +36,7 @@ PIKE_GRAMMAR = r"""
 	?comparison: sum
 		| sum "<" sum  -> lt
 		| sum ">" sum  -> gt
+		| sum "==" sum -> eq
 
 	// Precedence 2
 	?sum: product

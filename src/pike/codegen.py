@@ -214,6 +214,8 @@ class LLVMCodeGenerator:
 			return self._compare_to_double(left_exp, right_exp, '<')
 		elif node.operator == '>':
 			return self._compare_to_double(left_exp, right_exp, '>')
+		elif node.operator == '==':
+			return self._compare_to_double(left_exp, right_exp, '==')
 		else:
 			raise CodegenError(f"Unknown operator '{node.operator}'")
 
@@ -502,7 +504,7 @@ class LLVMCodeGenerator:
 			name="printf"
 		)
 	
-	def _compare_to_double(self, left, right, operation: Literal['<', '>']):
+	def _compare_to_double(self, left, right, operation: Literal['<', '>', '==']):
 		"""Helper to create the IR for a compare and return the result as a double."""
 		cmp = self.builder.fcmp_ordered(operation, left, right, name="cmptmp") # type: ignore
 		# Convert the i1 to double

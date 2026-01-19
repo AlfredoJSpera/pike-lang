@@ -1,3 +1,6 @@
+// NOTA: QUESTA GRAMMATICA È UGUALE A QUELLA IN
+// src/pike/grammar.py
+
 start: top_level*
 
 ?top_level: function_def
@@ -35,6 +38,7 @@ for_stmt: "for" "(" NAME "," number ";" expression ";" number ")" "{" body "}"
 ?comparison: sum
 	| sum "<" sum  -> lt
 	| sum ">" sum  -> gt
+	| sum "==" sum  -> eq
 
 // Precedence 2
 ?sum: product

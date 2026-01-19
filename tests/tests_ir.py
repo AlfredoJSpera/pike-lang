@@ -429,5 +429,22 @@ class TestPikeIRAndExecution(unittest.TestCase):
 		
 		self.assertEqual(self.compile_and_run(code), 104.0)
 
+	def test_equal_op(self):
+		code = """
+		defunc test() % num {
+			ret 0 == 0;
+		}
+		"""
+
+		self.assertEqual(self.compile_and_run(code), 1.0)
+
+		code = """
+		defunc test() % num {
+			ret 0 == 1;
+		}
+		"""
+
+		self.assertEqual(self.compile_and_run(code), 0.0)
+
 if __name__ == "__main__":
 	unittest.main()
