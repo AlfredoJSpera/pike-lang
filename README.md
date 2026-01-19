@@ -1,5 +1,8 @@
 # pike
 
+>[!NOTE]
+>Test del menù con scelte in `src/pike/myscript.pike`.
+
 This project uses [uv](https://github.com/astral-sh/uv) for Python environment management and running commands.
 
 ## Running the Compiler

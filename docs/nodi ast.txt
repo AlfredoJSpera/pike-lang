@@ -8,6 +8,7 @@ NodeAst
         ├── AssignmentAst [variable_name, value]
         ├── ReturnAst [expression]
         ├── PrintAst [expression, new_line]
+        ├── UserInputAst [destination_variable]
         ├── IfElseAst [condition, then_block, else_block]
         ├── ForLoopAst [iterator, start_val, condition, step, body]
         └── ExpressionAst
